@@ -1,0 +1,25 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+
+# ── acados / C generated code ─────────────────────────────────────────────────
+**/c_generated_code/
+*.o
+*.so
+*.a
+
+# ── Jupyter / IPython ────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── MATLAB results (large binary files — keep tracked selectively) ────────────
+# Uncomment the next line to also ignore .mat files:
+# *.mat
+
+# ── OS / editor ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+*.swp
+*~

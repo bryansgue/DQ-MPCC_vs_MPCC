@@ -1,0 +1,193 @@
+"""
+MPCC (Model Predictive Contouring Control) – strict formulation with
+symbolic trajectory interp    # Lag error: projection of e_t onto the tangent direction → 3-vector
+    e_lag    = dot(tangent, e_t) * tangent      # (t·e_t) · t  ∈ ℝ³
+    # Contouring error (component orthogonal to tangent)
+    P_ec = MX.eye(3) - tangent @ tangent.T
+    ec   = P_ec @ e_t                           # 3-vector ⊥ tangenton.
+
+Key MPCC features:
+  • θ (arc-length progress) is an optimisation STATE   (x[13])
+  • v_θ (progress velocity) is an optimisation CONTROL (u[4])
+  • θ̇ = v_θ  (augmented dynamics)
+  • The reference is a **symbolic CasADi function of θ** so the solver
+    can differentiate through:
+        v_θ  →  θ̇=v_θ  →  θ  →  reference(θ)  →  error  →  cost
+    This enables true optimisation of the progress speed v_θ.
+
+Augmented vectors
+-----------------
+  State   x ∈ ℝ¹⁴ = [p(3), v(3), q(4), ω(3), θ]
+  Control u ∈ ℝ⁵  = [T, τx, τy, τz, v_θ]
+
+No runtime parameters — the reference comes from the symbolic θ interpolation.
+"""
+
+import numpy as np
+from casadi import MX, dot, vertcat
+from acados_template import AcadosOcp, AcadosOcpSolver
+
+from models.quadrotor_mpcc_model import f_system_model_mpcc, MASS
+from utils.casadi_utils import (
+    quat_error_casadi as quaternion_error,
+    quat_log_casadi   as log_cuaternion_casadi,
+)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+#  Default cost weights
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+DEFAULT_Q_EC    = [10.0, 10.0, 10.0]            # Contouring error      [ex, ey, ez]
+DEFAULT_Q_EL    = [5.0, 5.0, 5.0]               # Lag error             [ex, ey, ez]
+DEFAULT_Q_Q     = [5.0, 5.0, 5.0]               # Quaternion log error  [roll, pitch, yaw]
+DEFAULT_U_MAT   = [0.1, 250.0, 250.0, 250.0]    # Control effort        [T, τx, τy, τz]
+DEFAULT_Q_OMEGA = [0.5, 0.5, 0.5]               # Angular velocity      [ωx, ωy, ωz]
+DEFAULT_Q_S     = 0.3                            # Progress: Q_s*(v_max-v_θ)²
+
+
+
+
+G = 9.81
+DEFAULT_T_MAX      = 5 * G
+DEFAULT_T_MIN      = 0.0
+DEFAULT_TAUX_MAX   = 0.1                         # ← was 0.03 — too restrictive!
+DEFAULT_TAUY_MAX   = 0.1                         # ← was 0.03
+DEFAULT_TAUZ_MAX   = 0.1                         # ← was 0.03
+DEFAULT_VTHETA_MIN = 0.0
+DEFAULT_VTHETA_MAX = 15.0
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  OCP builder
+# ══════════════════════════════════════════════════════════════════════════════
+
+def create_mpcc_ocp_description(
+    x0, N_horizon, t_horizon, s_max,
+    gamma_pos, gamma_vel, gamma_quat,
+) -> AcadosOcp:
+    """Create strict MPCC OCP with symbolic trajectory interpolation.
+
+    The reference sd(θ), tangent(θ), qd(θ) are CasADi functions of the
+    state θ=x[13].  The solver differentiates through θ→reference→error,
+    which makes v_θ truly optimisable.
+    """
+    ocp = AcadosOcp()
+    model, _, _, _ = f_system_model_mpcc()
+    ocp.model = model
+
+    ocp.solver_options.N_horizon = N_horizon
+
+    # Weights — one independent scalar per axis
+    Q_q     = np.diag(DEFAULT_Q_Q)
+    Q_el    = np.diag(DEFAULT_Q_EL)           # 3×3 diagonal: lag error per axis
+    Q_ec    = np.diag(DEFAULT_Q_EC)
+    U_mat   = np.diag(DEFAULT_U_MAT)
+    Q_omega = np.diag(DEFAULT_Q_OMEGA)
+    Q_s     = DEFAULT_Q_S
+
+    T_hover = MASS * 9.81                     # hover thrust [N] ≈ 9.81
+
+    ocp.cost.cost_type   = "EXTERNAL"
+    ocp.cost.cost_type_e = "EXTERNAL"
+
+    # ── Symbolic reference from θ ────────────────────────────────────────
+    theta_state = model.x[13]
+    sd      = gamma_pos(theta_state)      # [3]  reference position
+    tangent = gamma_vel(theta_state)      # [3]  unit tangent
+    qd      = gamma_quat(theta_state)     # [4]  desired quaternion
+
+    # ── Errors ───────────────────────────────────────────────────────────
+    quat_err = quaternion_error(model.x[6:10], qd)
+    log_q    = log_cuaternion_casadi(quat_err)
+
+    e_t = sd - model.x[0:3]            # 3-vector: reference minus position
+
+    # Lag error: projection of e_t onto the tangent direction → 3-vector
+    e_lag    = dot(tangent, e_t) * tangent      # (t·e_t)·t  ∈ ℝ³  ∥ tangent
+    # Contouring error (component orthogonal to tangent)
+    P_ec = MX.eye(3) - tangent @ tangent.T
+    ec   = P_ec @ e_t                           # 3-vector ⊥ tangent
+
+    omega   = model.x[10:13]
+    v_theta = model.u[4]
+
+    # ── Control cost (absolute, same as example) ────────────────────────
+    # Penalise absolute control values. With Q_T small (0.1) the hover
+    # thrust cost ≈ 0.1·9.81² ≈ 9.6 is negligible vs tracking errors.
+    # ── Cost terms ───────────────────────────────────────────────────────
+    control_cost      = model.u[0:4].T @ U_mat @ model.u[0:4]
+    actitud_cost      = log_q.T @ Q_q @ log_q
+    error_contorno    = ec.T @ Q_ec @ ec
+    error_lag         = e_lag.T @ Q_el @ e_lag  # e_lag' Q_el e_lag  ∈ ℝ
+    omega_cost        = omega.T @ Q_omega @ omega
+    arc_speed_penalty = Q_s * (DEFAULT_VTHETA_MAX - v_theta)**2
+
+    # ── Stage cost ───────────────────────────────────────────────────────
+    ocp.model.cost_expr_ext_cost = (
+        error_contorno + error_lag + actitud_cost
+        + control_cost + omega_cost
+        + arc_speed_penalty
+    )
+
+    # ── Terminal cost ────────────────────────────────────────────────────
+    ocp.model.cost_expr_ext_cost_e = (
+        error_contorno + error_lag + actitud_cost + omega_cost
+    )
+
+    # ── Constraints ──────────────────────────────────────────────────────
+    ocp.constraints.lbu = np.array([
+        DEFAULT_T_MIN, -DEFAULT_TAUX_MAX, -DEFAULT_TAUY_MAX, -DEFAULT_TAUZ_MAX,
+        DEFAULT_VTHETA_MIN,
+    ])
+    ocp.constraints.ubu = np.array([
+        DEFAULT_T_MAX, DEFAULT_TAUX_MAX, DEFAULT_TAUY_MAX, DEFAULT_TAUZ_MAX,
+        DEFAULT_VTHETA_MAX,
+    ])
+    ocp.constraints.idxbu = np.array([0, 1, 2, 3, 4])
+
+    ocp.constraints.lbx   = np.array([0.0])
+    ocp.constraints.ubx   = np.array([s_max])
+    ocp.constraints.idxbx = np.array([13])
+
+    ocp.constraints.x0 = x0
+
+    # ── Solver options ───────────────────────────────────────────────────
+    ocp.solver_options.qp_solver        = "FULL_CONDENSING_HPIPM"
+    ocp.solver_options.qp_solver_cond_N = N_horizon // 4
+    ocp.solver_options.hessian_approx   = "GAUSS_NEWTON"
+    ocp.solver_options.regularize_method = "CONVEXIFY"
+    ocp.solver_options.integrator_type  = "ERK"
+    ocp.solver_options.nlp_solver_type  = "SQP_RTI"
+    ocp.solver_options.Tsim             = t_horizon / N_horizon
+    ocp.solver_options.tol              = 1e-4
+    ocp.solver_options.tf               = t_horizon
+
+    return ocp
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Solver factory
+# ══════════════════════════════════════════════════════════════════════════════
+
+def build_mpcc_solver(x0, N_prediction, t_prediction, s_max,
+                      gamma_pos, gamma_vel, gamma_quat,
+                      use_cython=True):
+    """Create, code-generate, compile and return the MPCC solver."""
+    ocp = create_mpcc_ocp_description(
+        x0, N_prediction, t_prediction, s_max,
+        gamma_pos, gamma_vel, gamma_quat,
+    )
+    model = ocp.model
+    _, f_system, _, _ = f_system_model_mpcc()
+
+    solver_json = 'acados_ocp_' + model.name + '.json'
+
+    if use_cython:
+        AcadosOcpSolver.generate(ocp, json_file=solver_json)
+        AcadosOcpSolver.build(ocp.code_export_directory, with_cython=True)
+        acados_ocp_solver = AcadosOcpSolver.create_cython_solver(solver_json)
+    else:
+        acados_ocp_solver = AcadosOcpSolver(ocp, json_file=solver_json)
+
+    return acados_ocp_solver, ocp, model, f_system
