@@ -94,6 +94,11 @@ def create_dq_mpcc_ocp_description(
 
     ocp.solver_options.N_horizon = N_horizon
 
+    # ── Runtime parameter: v_theta_max ───────────────────────────────────
+    p_vtheta_max = MX.sym('p_vtheta_max')
+    model.p = p_vtheta_max
+    ocp.parameter_values = np.array([DEFAULT_VTHETA_MAX])
+
     # ── Weights ──────────────────────────────────────────────────────────
     Q_phi   = np.diag(DEFAULT_Q_PHI)          # 3×3  orientation
     Q_ec    = np.diag(DEFAULT_Q_EC)           # 3×3  contouring
@@ -139,7 +144,7 @@ def create_dq_mpcc_ocp_description(
     lag_cost          = rho_lag.T @ Q_el @ rho_lag
     control_cost      = model.u[0:4].T @ U_mat @ model.u[0:4]
     omega_cost        = omega.T @ Q_omega @ omega
-    arc_speed_penalty = Q_s * (DEFAULT_VTHETA_MAX - v_theta)**2
+    arc_speed_penalty = Q_s * (p_vtheta_max - v_theta)**2
 
     # ── Stage cost ───────────────────────────────────────────────────────
     ocp.model.cost_expr_ext_cost = (

@@ -1,0 +1,370 @@
+/home/bryansgue/.local/lib/python3.10/site-packages/matplotlib/projections/__init__.py:63: UserWarning: Unable to import Axes3D. This may be due to multiple versions of Matplotlib being installed (e.g. as a system package and as a pip package). As a result, the 3D projection is not available.
+  warnings.warn("Unable to import Axes3D. This may be due to multiple versions of "
+rm -f libacados_ocp_solver_Drone_ode_complete.so
+rm -f acados_solver_Drone_ode_complete.o
+rm -f acados_ocp_solver_pyx.so
+rm -f acados_ocp_solver_pyx.o
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o acados_solver_Drone_ode_complete.o acados_solver_Drone_ode_complete.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_model/Drone_ode_complete_expl_ode_fun.o Drone_ode_complete_model/Drone_ode_complete_expl_ode_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_model/Drone_ode_complete_expl_vde_forw.o Drone_ode_complete_model/Drone_ode_complete_expl_vde_forw.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_model/Drone_ode_complete_expl_vde_adj.o Drone_ode_complete_model/Drone_ode_complete_expl_vde_adj.c
+cc -shared Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac.o acados_solver_Drone_ode_complete.o Drone_ode_complete_model/Drone_ode_complete_expl_ode_fun.o Drone_ode_complete_model/Drone_ode_complete_expl_vde_forw.o Drone_ode_complete_model/Drone_ode_complete_expl_vde_adj.o -o libacados_ocp_solver_Drone_ode_complete.so -L/home/bryansgue/acados/lib -lacados -lhpipm -lblasfeo -lm \
+-L -l
+cython \
+-o acados_ocp_solver_pyx.c \
+-I /home/bryansgue/acados/include/../interfaces/acados_template/acados_template \
+/home/bryansgue/acados/include/../interfaces/acados_template/acados_template/acados_ocp_solver_pyx.pyx \
+-I /home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/MPCC_baseline/c_generated_code \
+
+/usr/lib/python3/dist-packages/pythran/tables.py:4553: FutureWarning: In the future `np.bytes` will be defined as the corresponding NumPy scalar.
+  obj = getattr(themodule, elem)
+cc  -c -O2 \
+-fPIC \
+-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION \
+-o acados_ocp_solver_pyx.o \
+-I /home/bryansgue/acados/include/blasfeo/include/ \
+-I /home/bryansgue/acados/include/hpipm/include/ \
+-I /home/bryansgue/acados/include \
+-I /home/bryansgue/.local/lib/python3.10/site-packages/numpy/_core/include \
+-I /usr/include/python3.10 \
+acados_ocp_solver_pyx.c \
+
+cc  -shared \
+-o acados_ocp_solver_pyx.so \
+-Wl,-rpath=/home/bryansgue/acados/lib \
+acados_ocp_solver_pyx.o \
+/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/MPCC_baseline/c_generated_code/libacados_ocp_solver_Drone_ode_complete.so \
+-L/home/bryansgue/acados/lib -lacados -lhpipm -lblasfeo -lm
+rm -f libacados_ocp_solver_DQ_Drone_MPCC.so
+rm -f acados_solver_DQ_Drone_MPCC.o
+rm -f acados_ocp_solver_pyx.so
+rm -f acados_ocp_solver_pyx.o
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun_jac_uxt_zt.o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun_jac_uxt_zt.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun.o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o acados_solver_DQ_Drone_MPCC.o acados_solver_DQ_Drone_MPCC.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_ode_fun.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_ode_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_forw.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_forw.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_adj.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_adj.c
+cc -shared DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun_jac_uxt_zt.o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac.o acados_solver_DQ_Drone_MPCC.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_ode_fun.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_forw.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_adj.o -o libacados_ocp_solver_DQ_Drone_MPCC.so -L/home/bryansgue/acados/lib -lacados -lhpipm -lblasfeo -lm \
+-L -l
+cython \
+-o acados_ocp_solver_pyx.c \
+-I /home/bryansgue/acados/include/../interfaces/acados_template/acados_template \
+/home/bryansgue/acados/include/../interfaces/acados_template/acados_template/acados_ocp_solver_pyx.pyx \
+-I /home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/c_generated_code \
+
+/usr/lib/python3/dist-packages/pythran/tables.py:4553: FutureWarning: In the future `np.bytes` will be defined as the corresponding NumPy scalar.
+  obj = getattr(themodule, elem)
+cc  -c -O2 \
+-fPIC \
+-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION \
+-o acados_ocp_solver_pyx.o \
+-I /home/bryansgue/acados/include/blasfeo/include/ \
+-I /home/bryansgue/acados/include/hpipm/include/ \
+-I /home/bryansgue/acados/include \
+-I /home/bryansgue/.local/lib/python3.10/site-packages/numpy/_core/include \
+-I /usr/include/python3.10 \
+acados_ocp_solver_pyx.c \
+
+cc  -shared \
+-o acados_ocp_solver_pyx.so \
+-Wl,-rpath=/home/bryansgue/acados/lib \
+acados_ocp_solver_pyx.o \
+/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/c_generated_code/libacados_ocp_solver_DQ_Drone_MPCC.so \
+-L/home/bryansgue/acados/lib -lacados -lhpipm -lblasfeo -lm
+rm -f libacados_ocp_solver_Drone_ode_complete.so
+rm -f acados_solver_Drone_ode_complete.o
+rm -f acados_ocp_solver_pyx.so
+rm -f acados_ocp_solver_pyx.o
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o acados_solver_Drone_ode_complete.o acados_solver_Drone_ode_complete.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_model/Drone_ode_complete_expl_ode_fun.o Drone_ode_complete_model/Drone_ode_complete_expl_ode_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_model/Drone_ode_complete_expl_vde_forw.o Drone_ode_complete_model/Drone_ode_complete_expl_vde_forw.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_model/Drone_ode_complete_expl_vde_adj.o Drone_ode_complete_model/Drone_ode_complete_expl_vde_adj.c
+cc -shared Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac.o acados_solver_Drone_ode_complete.o Drone_ode_complete_model/Drone_ode_complete_expl_ode_fun.o Drone_ode_complete_model/Drone_ode_complete_expl_vde_forw.o Drone_ode_complete_model/Drone_ode_complete_expl_vde_adj.o -o libacados_ocp_solver_Drone_ode_complete.so -L/home/bryansgue/acados/lib -lacados -lhpipm -lblasfeo -lm \
+-L -l
+cython \
+-o acados_ocp_solver_pyx.c \
+-I /home/bryansgue/acados/include/../interfaces/acados_template/acados_template \
+/home/bryansgue/acados/include/../interfaces/acados_template/acados_template/acados_ocp_solver_pyx.pyx \
+-I /home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/MPCC_baseline/c_generated_code \
+
+/usr/lib/python3/dist-packages/pythran/tables.py:4553: FutureWarning: In the future `np.bytes` will be defined as the corresponding NumPy scalar.
+  obj = getattr(themodule, elem)
+cc  -c -O2 \
+-fPIC \
+-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION \
+-o acados_ocp_solver_pyx.o \
+-I /home/bryansgue/acados/include/blasfeo/include/ \
+-I /home/bryansgue/acados/include/hpipm/include/ \
+-I /home/bryansgue/acados/include \
+-I /home/bryansgue/.local/lib/python3.10/site-packages/numpy/_core/include \
+-I /usr/include/python3.10 \
+acados_ocp_solver_pyx.c \
+
+cc  -shared \
+-o acados_ocp_solver_pyx.so \
+-Wl,-rpath=/home/bryansgue/acados/lib \
+acados_ocp_solver_pyx.o \
+/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/MPCC_baseline/c_generated_code/libacados_ocp_solver_Drone_ode_complete.so \
+-L/home/bryansgue/acados/lib -lacados -lhpipm -lblasfeo -lm
+rm -f libacados_ocp_solver_DQ_Drone_MPCC.so
+rm -f acados_solver_DQ_Drone_MPCC.o
+rm -f acados_ocp_solver_pyx.so
+rm -f acados_ocp_solver_pyx.o
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun_jac_uxt_zt.o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun_jac_uxt_zt.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun.o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o acados_solver_DQ_Drone_MPCC.o acados_solver_DQ_Drone_MPCC.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_ode_fun.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_ode_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_forw.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_forw.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_adj.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_adj.c
+cc -shared DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun_jac_uxt_zt.o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac.o acados_solver_DQ_Drone_MPCC.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_ode_fun.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_forw.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_adj.o -o libacados_ocp_solver_DQ_Drone_MPCC.so -L/home/bryansgue/acados/lib -lacados -lhpipm -lblasfeo -lm \
+-L -l
+cython \
+-o acados_ocp_solver_pyx.c \
+-I /home/bryansgue/acados/include/../interfaces/acados_template/acados_template \
+/home/bryansgue/acados/include/../interfaces/acados_template/acados_template/acados_ocp_solver_pyx.pyx \
+-I /home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/c_generated_code \
+
+/usr/lib/python3/dist-packages/pythran/tables.py:4553: FutureWarning: In the future `np.bytes` will be defined as the corresponding NumPy scalar.
+  obj = getattr(themodule, elem)
+cc  -c -O2 \
+-fPIC \
+-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION \
+-o acados_ocp_solver_pyx.o \
+-I /home/bryansgue/acados/include/blasfeo/include/ \
+-I /home/bryansgue/acados/include/hpipm/include/ \
+-I /home/bryansgue/acados/include \
+-I /home/bryansgue/.local/lib/python3.10/site-packages/numpy/_core/include \
+-I /usr/include/python3.10 \
+acados_ocp_solver_pyx.c \
+
+cc  -shared \
+-o acados_ocp_solver_pyx.so \
+-Wl,-rpath=/home/bryansgue/acados/lib \
+acados_ocp_solver_pyx.o \
+/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/c_generated_code/libacados_ocp_solver_DQ_Drone_MPCC.so \
+-L/home/bryansgue/acados/lib -lacados -lhpipm -lblasfeo -lm
+rm -f libacados_ocp_solver_Drone_ode_complete.so
+rm -f acados_solver_Drone_ode_complete.o
+rm -f acados_ocp_solver_pyx.so
+rm -f acados_ocp_solver_pyx.o
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o acados_solver_Drone_ode_complete.o acados_solver_Drone_ode_complete.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_model/Drone_ode_complete_expl_ode_fun.o Drone_ode_complete_model/Drone_ode_complete_expl_ode_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_model/Drone_ode_complete_expl_vde_forw.o Drone_ode_complete_model/Drone_ode_complete_expl_vde_forw.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o Drone_ode_complete_model/Drone_ode_complete_expl_vde_adj.o Drone_ode_complete_model/Drone_ode_complete_expl_vde_adj.c
+cc -shared Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_0_fun_jac.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_fun_jac.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac_hess.o Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac.o acados_solver_Drone_ode_complete.o Drone_ode_complete_model/Drone_ode_complete_expl_ode_fun.o Drone_ode_complete_model/Drone_ode_complete_expl_vde_forw.o Drone_ode_complete_model/Drone_ode_complete_expl_vde_adj.o -o libacados_ocp_solver_Drone_ode_complete.so -L/home/bryansgue/acados/lib -lacados -lhpipm -lblasfeo -lm \
+-L -l
+cython \
+-o acados_ocp_solver_pyx.c \
+-I /home/bryansgue/acados/include/../interfaces/acados_template/acados_template \
+/home/bryansgue/acados/include/../interfaces/acados_template/acados_template/acados_ocp_solver_pyx.pyx \
+-I /home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/MPCC_baseline/c_generated_code \
+
+/usr/lib/python3/dist-packages/pythran/tables.py:4553: FutureWarning: In the future `np.bytes` will be defined as the corresponding NumPy scalar.
+  obj = getattr(themodule, elem)
+cc  -c -O2 \
+-fPIC \
+-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION \
+-o acados_ocp_solver_pyx.o \
+-I /home/bryansgue/acados/include/blasfeo/include/ \
+-I /home/bryansgue/acados/include/hpipm/include/ \
+-I /home/bryansgue/acados/include \
+-I /home/bryansgue/.local/lib/python3.10/site-packages/numpy/_core/include \
+-I /usr/include/python3.10 \
+acados_ocp_solver_pyx.c \
+
+cc  -shared \
+-o acados_ocp_solver_pyx.so \
+-Wl,-rpath=/home/bryansgue/acados/lib \
+acados_ocp_solver_pyx.o \
+/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/MPCC_baseline/c_generated_code/libacados_ocp_solver_Drone_ode_complete.so \
+-L/home/bryansgue/acados/lib -lacados -lhpipm -lblasfeo -lm
+rm -f libacados_ocp_solver_DQ_Drone_MPCC.so
+rm -f acados_solver_DQ_Drone_MPCC.o
+rm -f acados_ocp_solver_pyx.so
+rm -f acados_ocp_solver_pyx.o
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun_jac_uxt_zt.o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun_jac_uxt_zt.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun.o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac_hess.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o acados_solver_DQ_Drone_MPCC.o acados_solver_DQ_Drone_MPCC.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_ode_fun.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_ode_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_forw.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_forw.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_adj.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_adj.c
+cc -shared DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun_jac_uxt_zt.o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_fun_jac.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac.o acados_solver_DQ_Drone_MPCC.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_ode_fun.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_forw.o DQ_Drone_MPCC_model/DQ_Drone_MPCC_expl_vde_adj.o -o libacados_ocp_solver_DQ_Drone_MPCC.so -L/home/bryansgue/acados/lib -lacados -lhpipm -lblasfeo -lm \
+-L -l
+cython \
+-o acados_ocp_solver_pyx.c \
+-I /home/bryansgue/acados/include/../interfaces/acados_template/acados_template \
+/home/bryansgue/acados/include/../interfaces/acados_template/acados_template/acados_ocp_solver_pyx.pyx \
+-I /home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/c_generated_code \
+
+/usr/lib/python3/dist-packages/pythran/tables.py:4553: FutureWarning: In the future `np.bytes` will be defined as the corresponding NumPy scalar.
+  obj = getattr(themodule, elem)
+cc  -c -O2 \
+-fPIC \
+-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION \
+-o acados_ocp_solver_pyx.o \
+-I /home/bryansgue/acados/include/blasfeo/include/ \
+-I /home/bryansgue/acados/include/hpipm/include/ \
+-I /home/bryansgue/acados/include \
+-I /home/bryansgue/.local/lib/python3.10/site-packages/numpy/_core/include \
+-I /usr/include/python3.10 \
+acados_ocp_solver_pyx.c \
+
+cc  -shared \
+-o acados_ocp_solver_pyx.so \
+-Wl,-rpath=/home/bryansgue/acados/lib \
+acados_ocp_solver_pyx.o \
+/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/c_generated_code/libacados_ocp_solver_DQ_Drone_MPCC.so \
+-L/home/bryansgue/acados/lib -lacados -lhpipm -lblasfeo -lm
+
+======================================================================
+  VELOCITY 1/3:  v_theta_max = 4.74 m/s
+======================================================================
+  [MPCC] Building solver with v_theta_max=4.74...
+
+WARNING: Gauss-Newton Hessian approximation with EXTERNAL cost type not well defined!
+got cost_type EXTERNAL for cost_type_0, cost_type, cost_type_e, hessian_approx: 'GAUSS_NEWTON'.
+With this setting, acados will proceed computing the exact Hessian for the cost term and no Hessian contribution from constraints and dynamics.
+If the external cost is a linear least squares cost, this coincides with the Gauss-Newton Hessian.
+Note: There is also the option to use the external cost module with a numerical Hessian approximation (see `ext_cost_num_hess`).
+OR the option to provide a symbolic custom Hessian approximation (see `cost_expr_ext_cost_custom_hess`).
+
+  [MPCC] Solver ready.
+  [DQ]   Building solver with v_theta_max=4.74...
+
+WARNING: Gauss-Newton Hessian approximation with EXTERNAL cost type not well defined!
+got cost_type EXTERNAL for cost_type_0, cost_type, cost_type_e, hessian_approx: 'GAUSS_NEWTON'.
+With this setting, acados will proceed computing the exact Hessian for the cost term and no Hessian contribution from constraints and dynamics.
+If the external cost is a linear least squares cost, this coincides with the Gauss-Newton Hessian.
+Note: There is also the option to use the external cost module with a numerical Hessian approximation (see `ext_cost_num_hess`).
+OR the option to provide a symbolic custom Hessian approximation (see `cost_expr_ext_cost_custom_hess`).
+
+  [DQ]   Solver ready.
+    [MPCC] Run 1 FAILED: AcadosOcpSolverCython.set(): mismatching dimension for field "x" with dimension 5 (you have 14)
+    [DQ]   Run 1 FAILED: AcadosOcpSolverCython.set(): mismatching dimension for field "x" with dimension 14 (you have 15)
+  [   2/12] v=4.74  run=  1/2  ( 16.7%)  ETA 8.8 min    [MPCC] Run 2 FAILED: AcadosOcpSolverCython.set(): mismatching dimension for field "x" with dimension 5 (you have 14)
+    [DQ]   Run 2 FAILED: AcadosOcpSolverCython.set(): mismatching dimension for field "x" with dimension 14 (you have 15)
+  [   4/12] v=4.74  run=  2/2  ( 33.3%)  ETA 3.5 min
+  [DQ-MPCC   ] v=4.74  ALL FAILED (2)
+  [Baseline  ] v=4.74  ALL FAILED (2)
+
+======================================================================
+  VELOCITY 2/3:  v_theta_max = 5.32 m/s
+======================================================================
+  [MPCC] Building solver with v_theta_max=5.32...
+
+WARNING: Gauss-Newton Hessian approximation with EXTERNAL cost type not well defined!
+got cost_type EXTERNAL for cost_type_0, cost_type, cost_type_e, hessian_approx: 'GAUSS_NEWTON'.
+With this setting, acados will proceed computing the exact Hessian for the cost term and no Hessian contribution from constraints and dynamics.
+If the external cost is a linear least squares cost, this coincides with the Gauss-Newton Hessian.
+Note: There is also the option to use the external cost module with a numerical Hessian approximation (see `ext_cost_num_hess`).
+OR the option to provide a symbolic custom Hessian approximation (see `cost_expr_ext_cost_custom_hess`).
+
+  [MPCC] Solver ready.
+  [DQ]   Building solver with v_theta_max=5.32...
+
+WARNING: Gauss-Newton Hessian approximation with EXTERNAL cost type not well defined!
+got cost_type EXTERNAL for cost_type_0, cost_type, cost_type_e, hessian_approx: 'GAUSS_NEWTON'.
+With this setting, acados will proceed computing the exact Hessian for the cost term and no Hessian contribution from constraints and dynamics.
+If the external cost is a linear least squares cost, this coincides with the Gauss-Newton Hessian.
+Note: There is also the option to use the external cost module with a numerical Hessian approximation (see `ext_cost_num_hess`).
+OR the option to provide a symbolic custom Hessian approximation (see `cost_expr_ext_cost_custom_hess`).
+
+  [DQ]   Solver ready.
+    [MPCC] Run 1 FAILED: AcadosOcpSolverCython.set(): mismatching dimension for field "x" with dimension 5 (you have 14)
+    [DQ]   Run 1 FAILED: AcadosOcpSolverCython.set(): mismatching dimension for field "x" with dimension 14 (you have 15)
+  [   6/12] v=5.32  run=  1/2  ( 50.0%)  ETA 3.4 min    [MPCC] Run 2 FAILED: AcadosOcpSolverCython.set(): mismatching dimension for field "x" with dimension 5 (you have 14)
+    [DQ]   Run 2 FAILED: AcadosOcpSolverCython.set(): mismatching dimension for field "x" with dimension 14 (you have 15)
+  [   8/12] v=5.32  run=  2/2  ( 66.7%)  ETA 1.7 min
+  [DQ-MPCC   ] v=5.32  ALL FAILED (2)
+  [Baseline  ] v=5.32  ALL FAILED (2)
+
+======================================================================
+  VELOCITY 3/3:  v_theta_max = 6.1 m/s
+======================================================================
+  [MPCC] Building solver with v_theta_max=6.1...
+
+WARNING: Gauss-Newton Hessian approximation with EXTERNAL cost type not well defined!
+got cost_type EXTERNAL for cost_type_0, cost_type, cost_type_e, hessian_approx: 'GAUSS_NEWTON'.
+With this setting, acados will proceed computing the exact Hessian for the cost term and no Hessian contribution from constraints and dynamics.
+If the external cost is a linear least squares cost, this coincides with the Gauss-Newton Hessian.
+Note: There is also the option to use the external cost module with a numerical Hessian approximation (see `ext_cost_num_hess`).
+OR the option to provide a symbolic custom Hessian approximation (see `cost_expr_ext_cost_custom_hess`).
+
+  [MPCC] Solver ready.
+  [DQ]   Building solver with v_theta_max=6.1...
+
+WARNING: Gauss-Newton Hessian approximation with EXTERNAL cost type not well defined!
+got cost_type EXTERNAL for cost_type_0, cost_type, cost_type_e, hessian_approx: 'GAUSS_NEWTON'.
+With this setting, acados will proceed computing the exact Hessian for the cost term and no Hessian contribution from constraints and dynamics.
+If the external cost is a linear least squares cost, this coincides with the Gauss-Newton Hessian.
+Note: There is also the option to use the external cost module with a numerical Hessian approximation (see `ext_cost_num_hess`).
+OR the option to provide a symbolic custom Hessian approximation (see `cost_expr_ext_cost_custom_hess`).
+
+  [DQ]   Solver ready.
+    [MPCC] Run 1 FAILED: AcadosOcpSolverCython.set(): mismatching dimension for field "x" with dimension 5 (you have 14)
+    [DQ]   Run 1 FAILED: AcadosOcpSolverCython.set(): mismatching dimension for field "x" with dimension 14 (you have 15)
+  [  10/12] v=6.1  run=  1/2  ( 83.3%)  ETA 1.0 min    [MPCC] Run 2 FAILED: AcadosOcpSolverCython.set(): mismatching dimension for field "x" with dimension 5 (you have 14)
+    [DQ]   Run 2 FAILED: AcadosOcpSolverCython.set(): mismatching dimension for field "x" with dimension 14 (you have 15)
+  [  12/12] v=6.1  run=  2/2  (100.0%)  ETA 0.0 min
+  [DQ-MPCC   ] v=6.1  ALL FAILED (2)
+  [Baseline  ] v=6.1  ALL FAILED (2)
+
+======================================================================
+  DONE — 12 runs in 5.1 min
+  Results saved to /home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/experiment2_results/velocity_sweep_data.mat
+======================================================================

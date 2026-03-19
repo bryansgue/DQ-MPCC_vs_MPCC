@@ -68,7 +68,7 @@ static const casadi_int casadi_s1[3] = {5, 1, 1};
 static const casadi_int casadi_s2[3] = {0, 1, 1};
 static const casadi_int casadi_s3[3] = {1, 1, 1};
 
-/* DQ_Drone_MPCC_constr_h_fun:(i0[15],i1[5],i2[0],i3[0])->(o0) */
+/* DQ_Drone_MPCC_constr_h_fun:(i0[15],i1[5],i2[0],i3)->(o0) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
   casadi_real *rr, w00, w01, w02, w03, w04, w05, w06, w07, w08, w09, w10;
   casadi_real w11, w12, w13, w14, *w15=w+15, *w16=w+30;
@@ -189,7 +189,7 @@ CASADI_SYMBOL_EXPORT const casadi_int* DQ_Drone_MPCC_constr_h_fun_sparsity_in(ca
     case 0: return casadi_s0;
     case 1: return casadi_s1;
     case 2: return casadi_s2;
-    case 3: return casadi_s2;
+    case 3: return casadi_s3;
     default: return 0;
   }
 }

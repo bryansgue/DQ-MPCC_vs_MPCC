@@ -1,0 +1,21 @@
+% Requires: \usepackage{booktabs,siunitx}
+\begin{table}[t]
+  \centering
+  \caption{Velocity sweep: median RMSE (IQR) over 50 Monte Carlo runs.}
+  \label{tab:velocity_sweep}
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{l cc cc}
+    \toprule
+    & \multicolumn{2}{c}{\textbf{DQ-MPCC}}
+    & \multicolumn{2}{c}{\textbf{Baseline MPCC}} \\
+    \cmidrule(lr){2-3} \cmidrule(lr){4-5}
+    $v_{\theta,\max}$ [m/s]
+    & $\|\mathbf{e}_p\|$ [m] & $\|\mathrm{Log}(q_e)\|$ [rad]
+    & $\|\mathbf{e}_p\|$ [m] & $\|\mathrm{Log}(q_e)\|$ [rad] \\
+    \midrule
+    4.74 & 0.366 (0.006) & 0.407 (0.008) & 0.324 (0.000) & 0.297 (0.000) \\
+    5.32 & 0.367 (0.012) & 0.433 (0.002) & 0.323 (0.000) & 0.323 (0.001) \\
+    6.1 & 0.370 (0.002) & 0.484 (0.001) & 0.322 (0.000) & 0.357 (0.000) \\
+    \bottomrule
+  \end{tabular}
+\end{table}

@@ -10059,7 +10059,7 @@ static int casadi_f3(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   return 0;
 }
 
-/* DQ_Drone_MPCC_cost_ext_cost_fun:(i0[15],i1[5],i2[0],i3[0])->(o0) */
+/* DQ_Drone_MPCC_cost_ext_cost_fun:(i0[15],i1[5],i2[0],i3)->(o0) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
   casadi_int i, j, k;
   casadi_real **res1=res+1, *rr, w00, *w01=w+66, w02, *w03=w+70, *w04=w+73, w05, *w06=w+82, w07, w08, w09;
@@ -10713,8 +10713,8 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   w08 += w00;
   /* #240: @0 = 0.3 */
   w00 = 2.9999999999999999e-01;
-  /* #241: @7 = 15 */
-  w07 = 15.;
+  /* #241: @7 = input[3][0] */
+  w07 = arg[3] ? arg[3][0] : 0;
   /* #242: @7 = (@7-@10) */
   w07 -= w10;
   /* #243: @7 = sq(@7) */
@@ -10788,7 +10788,7 @@ CASADI_SYMBOL_EXPORT const casadi_int* DQ_Drone_MPCC_cost_ext_cost_fun_sparsity_
     case 0: return casadi_s2;
     case 1: return casadi_s3;
     case 2: return casadi_s4;
-    case 3: return casadi_s4;
+    case 3: return casadi_s5;
     default: return 0;
   }
 }

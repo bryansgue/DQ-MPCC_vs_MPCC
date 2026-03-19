@@ -104,6 +104,12 @@ int main()
     u0[2] = 0.0;
     u0[3] = 0.0;
     u0[4] = 0.0;
+    // set parameters
+    double p[NP];
+    p[0] = 15;
+
+    Drone_ode_complete_acados_sim_update_params(capsule, p, NP);
+  
 
   
 

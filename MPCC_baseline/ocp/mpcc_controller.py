@@ -78,6 +78,11 @@ def create_mpcc_ocp_description(
 
     ocp.solver_options.N_horizon = N_horizon
 
+    # ── Runtime parameter: v_theta_max ───────────────────────────────────
+    p_vtheta_max = MX.sym('p_vtheta_max')
+    model.p = p_vtheta_max
+    ocp.parameter_values = np.array([DEFAULT_VTHETA_MAX])
+
     # Weights — one independent scalar per axis
     Q_q     = np.diag(DEFAULT_Q_Q)
     Q_el    = np.diag(DEFAULT_Q_EL)           # 3×3 diagonal: lag error per axis
@@ -121,7 +126,7 @@ def create_mpcc_ocp_description(
     error_contorno    = ec.T @ Q_ec @ ec
     error_lag         = e_lag.T @ Q_el @ e_lag  # e_lag' Q_el e_lag  ∈ ℝ
     omega_cost        = omega.T @ Q_omega @ omega
-    arc_speed_penalty = Q_s * (DEFAULT_VTHETA_MAX - v_theta)**2
+    arc_speed_penalty = Q_s * (p_vtheta_max - v_theta)**2
 
     # ── Stage cost ───────────────────────────────────────────────────────
     ocp.model.cost_expr_ext_cost = (

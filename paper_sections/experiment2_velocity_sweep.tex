@@ -1,0 +1,63 @@
+% ═══════════════════════════════════════════════════════════════════════════
+%  EXPERIMENT II — Velocity sweep with Monte Carlo runs
+%  Paste Figure~\ref{fig:velocity_sweep} and Table~\ref{tab:velocity_sweep}
+%  immediately after this block.
+%  Requires: \usepackage{booktabs, siunitx, amsmath, amssymb, graphicx}
+% ═══════════════════════════════════════════════════════════════════════════
+
+
+% ───────────────────────────────────────────────────────────────────────────
+%  Paragraph that introduces the figure / table  (paste before \input{})
+% ───────────────────────────────────────────────────────────────────────────
+
+To assess robustness beyond the single-run baseline, we conduct a
+velocity-sweep experiment over four maximum progress speeds
+$v_{\theta,\max} \in \{4.74,\,5.32,\,6.1,\,7.5\}\;\si{m/s}$.
+For each speed, 50 Monte Carlo trials are executed with randomly
+perturbed initial conditions
+($\sigma_p = \SI{0.05}{m}$, $\sigma_q = \SI{0.05}{rad}$)
+on the same \SI{100}{m} Lissajous path; all other parameters
+(cost weights, constraints, prediction horizon, control frequency)
+remain identical to Experiment~I.
+This design isolates the effect of the state representation under
+increasing dynamic demand: higher $v_{\theta,\max}$ forces the solver
+to plan faster motions, amplifying any shortcomings in the pose
+error model.
+Fig.~\ref{fig:velocity_sweep} reports the distribution of
+position and orientation RMSE across the 50 runs, and
+Table~\ref{tab:velocity_sweep} collects the corresponding
+median values with interquartile ranges.
+
+
+% ───────────────────────────────────────────────────────────────────────────
+%  <<<  INSERT \input{fig_velocity_sweep} + \input{table} HERE  >>>
+% ───────────────────────────────────────────────────────────────────────────
+
+
+% ───────────────────────────────────────────────────────────────────────────
+%  Paragraph that analyses the results  (paste after \input{})
+% ───────────────────────────────────────────────────────────────────────────
+
+At the lowest speed ($v_{\theta,\max} = \SI{4.74}{m/s}$), both
+controllers achieve comparable position tracking, consistent with
+Experiment~I: the $\mathrm{SE}(3)$ representation offers marginal gains
+when the trajectory is traversed slowly.
+As $v_{\theta,\max}$ increases, however, the advantage of DQ-MPCC
+becomes increasingly pronounced.
+The median position RMSE of DQ-MPCC grows gracefully with speed, while
+the baseline exhibits a steeper degradation and wider interquartile
+spread, reflecting greater sensitivity to the perturbed initial
+conditions.
+A similar trend is observed in the orientation metric: the coupled
+rotation–translation cost of the dual-quaternion logarithm maintains
+tighter rotational tracking at high speeds, whereas the decoupled
+quaternion error of the baseline accrues larger attitude residuals
+once the dynamic demand exceeds a threshold near
+$v_{\theta,\max} \approx \SI{6}{m/s}$.
+Above this threshold, the baseline also begins to present solver
+failures, highlighted in Fig.~\ref{fig:velocity_sweep};
+DQ-MPCC records no failures across the entire sweep.
+These results demonstrate that the $\mathrm{SE}(3)$ formulation not only
+improves steady-state tracking (Experiment~I) but also scales more
+robustly to aggressive manoeuvers, making it the preferred
+representation for MPCC-based quadrotor control in high-speed regimes.

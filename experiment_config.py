@@ -42,7 +42,7 @@ THETA0 = 0.0
 VALUE        = 5        # trajectory speed scaling
 T_FINAL      = 60       # [s] safety time budget (never the binding constraint)
 FREC         = 100      # [Hz] control frequency
-T_PREDICTION = 0.5      # [s] MPC prediction horizon
+T_PREDICTION = 0.3      # [s] MPC prediction horizon
 N_WAYPOINTS  = 30       # CasADi interpolation waypoints
 
 # Arc-length limit [m].  None → full curve (~126.8 m).

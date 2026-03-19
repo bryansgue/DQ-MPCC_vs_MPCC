@@ -413,7 +413,7 @@ static const casadi_int casadi_s13[3] = {14, 1, 1};
 static const casadi_int casadi_s14[3] = {14, 14, 1};
 static const casadi_int casadi_s15[3] = {14, 5, 1};
 static const casadi_int casadi_s16[3] = {5, 1, 1};
-static const casadi_int casadi_s17[3] = {0, 1, 1};
+static const casadi_int casadi_s17[3] = {1, 1, 1};
 static const casadi_int casadi_s18[199] = 
   {14, 14, 0, 13, 26, 39, 52, 65,
   78, 91, 104, 117, 130, 143, 156, 169,
@@ -473,7 +473,7 @@ static const casadi_real casadi_zeros[196] =
   0., 0., 0., 0., 0., 0., 0., 0.,
   0., 0., 0., 0.};
 
-/* Drone_ode_complete_expl_vde_forw:(i0[14],i1[14x14],i2[14x5],i3[5],i4[0])->(o0[14],o1[14x14,182nz],o2[14x5,66nz]) */
+/* Drone_ode_complete_expl_vde_forw:(i0[14],i1[14x14],i2[14x5],i3[5],i4)->(o0[14],o1[14x14,182nz],o2[14x5,66nz]) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
   casadi_int i, j, k;
   casadi_real *rr, w00, *w01=w+15, *w02=w+18, *w03=w+27, w04, w05, w06, *w07=w+39, w08, *w09=w+44, w10;

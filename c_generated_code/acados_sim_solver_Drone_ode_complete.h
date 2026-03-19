@@ -37,7 +37,7 @@
 #define DRONE_ODE_COMPLETE_NX     14
 #define DRONE_ODE_COMPLETE_NZ     0
 #define DRONE_ODE_COMPLETE_NU     5
-#define DRONE_ODE_COMPLETE_NP     0
+#define DRONE_ODE_COMPLETE_NP     1
 
 #ifdef __cplusplus
 extern "C" {

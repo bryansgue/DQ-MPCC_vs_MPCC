@@ -61284,7 +61284,7 @@ static int casadi_f11(const casadi_real** arg, casadi_real** res, casadi_int* iw
   return 0;
 }
 
-/* Drone_ode_complete_cost_ext_cost_fun_jac_hess:(i0[14],i1[5],i2[0],i3[0])->(o0,o1[19],o2[19x19,66nz],o3[],o4[0x19]) */
+/* Drone_ode_complete_cost_ext_cost_fun_jac_hess:(i0[14],i1[5],i2[0],i3)->(o0,o1[19],o2[19x19,66nz],o3[],o4[0x19]) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
   casadi_int i, j, k;
   casadi_real **res1=res+5, *rr, w000, *w001=w+749, *w002=w+752, *w003=w+755, *w004=w+764, w005, *w006=w+774, *w007=w+777, *w008=w+780, *w009=w+789;
@@ -61602,8 +61602,8 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   w010 += w042;
   /* #116: @42 = 0.3 */
   w042 = 2.9999999999999999e-01;
-  /* #117: @43 = 15 */
-  w043 = 15.;
+  /* #117: @43 = input[3][0] */
+  w043 = arg[3] ? arg[3][0] : 0;
   /* #118: @43 = (@43-@46) */
   w043 -= w046;
   /* #119: @46 = sq(@43) */
@@ -65288,7 +65288,7 @@ CASADI_SYMBOL_EXPORT const casadi_int* Drone_ode_complete_cost_ext_cost_fun_jac_
     case 0: return casadi_s36;
     case 1: return casadi_s37;
     case 2: return casadi_s38;
-    case 3: return casadi_s38;
+    case 3: return casadi_s39;
     default: return 0;
   }
 }

@@ -39,7 +39,7 @@
 #define DQ_DRONE_MPCC_NX     15
 #define DQ_DRONE_MPCC_NZ     0
 #define DQ_DRONE_MPCC_NU     5
-#define DQ_DRONE_MPCC_NP     0
+#define DQ_DRONE_MPCC_NP     1
 #define DQ_DRONE_MPCC_NP_GLOBAL     0
 #define DQ_DRONE_MPCC_NBX    1
 #define DQ_DRONE_MPCC_NBX0   15

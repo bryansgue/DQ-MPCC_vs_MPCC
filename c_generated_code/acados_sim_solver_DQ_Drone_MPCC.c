@@ -169,6 +169,14 @@ int DQ_Drone_MPCC_acados_sim_create(DQ_Drone_MPCC_sim_solver_capsule * capsule)
     capsule->acados_sim_solver = DQ_Drone_MPCC_sim_solver;
 
 
+    /* initialize parameter values */
+    double* p = calloc(np, sizeof(double));
+    
+    p[0] = 15;
+
+    DQ_Drone_MPCC_acados_sim_update_params(capsule, p, np);
+    free(p);
+
 
     /* initialize input */
     // x

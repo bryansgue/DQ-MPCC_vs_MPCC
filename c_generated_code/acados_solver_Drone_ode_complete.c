@@ -410,7 +410,15 @@ void Drone_ode_complete_acados_create_setup_functions(Drone_ode_complete_solver_
 void Drone_ode_complete_acados_create_set_default_parameters(Drone_ode_complete_solver_capsule* capsule)
 {
 
-    // no parameters defined
+    const int N = capsule->nlp_solver_plan->N;
+    // initialize parameters to nominal value
+    double* p = calloc(NP, sizeof(double));
+    p[0] = 15;
+
+    for (int i = 0; i <= N; i++) {
+        Drone_ode_complete_acados_update_params(capsule, i, p, NP);
+    }
+    free(p);
 
 
     // no global parameters defined
@@ -954,7 +962,7 @@ int Drone_ode_complete_acados_update_params(Drone_ode_complete_solver_capsule* c
 {
     int solver_status = 0;
 
-    int casadi_np = 0;
+    int casadi_np = 1;
     if (casadi_np != np) {
         printf("acados_update_params: trying to set %i parameters for external functions."
             " External function has %i parameters. Exiting.\n", np, casadi_np);
