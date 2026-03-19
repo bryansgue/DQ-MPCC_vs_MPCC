@@ -1,7 +1,7 @@
 {
     "acados_include_path": "/home/bryansgue/acados/include",
     "acados_lib_path": "/home/bryansgue/acados/lib",
-    "code_export_directory": "/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/c_generated_code",
+    "code_export_directory": "/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/c_generated_code_dq",
     "constraints": {
         "C": [],
         "C_e": [],
@@ -307,7 +307,7 @@
         "DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac_hess.c",
         "DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_e_fun_jac.c"
     ],
-    "json_file": "acados_ocp_DQ_Drone_MPCC.json",
+    "json_file": "/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/acados_ocp_DQ_Drone_MPCC.json",
     "model": {
         "con_h_expr": "MX(||vertcat(qr_w, qr_x, qr_y, qr_z, qd_w, qd_x, qd_y, qd_z, wx, wy, wz, vx, vy, vz, theta)[:4]||_F)",
         "con_h_expr_0": [],
@@ -407,7 +407,7 @@
     "name": "DQ_Drone_MPCC",
     "p_global_values": [],
     "parameter_values": [
-        15
+        15.0
     ],
     "problem_class": "OCP",
     "ros_opts": null,

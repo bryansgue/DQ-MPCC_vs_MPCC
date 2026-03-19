@@ -22,6 +22,8 @@ Cost structure:
       + Q_s (v_max − v_θ)²
 """
 
+import os
+import shutil
 import numpy as np
 from casadi import MX, vertcat, norm_2, dot
 from acados_template import AcadosOcp, AcadosOcpSolver
@@ -91,6 +93,12 @@ def create_dq_mpcc_ocp_description(
     ocp = AcadosOcp()
     model, _, _, _ = f_dq_system_model_mpcc()
     ocp.model = model
+
+    # Absolute path so the compiled solver always lives next to the ocp/ folder,
+    # regardless of what cwd is when the script runs.
+    _OCP_DIR = os.path.dirname(os.path.abspath(__file__))
+    _PROJ_DIR = os.path.dirname(_OCP_DIR)
+    ocp.code_export_directory = os.path.join(_PROJ_DIR, 'c_generated_code_dq')
 
     ocp.solver_options.N_horizon = N_horizon
 
@@ -224,13 +232,25 @@ def build_dq_mpcc_solver(x0, N_prediction, t_prediction, s_max,
     model = ocp.model
     _, f_system, _, _ = f_dq_system_model_mpcc()
 
-    solver_json = 'acados_ocp_' + model.name + '.json'
+    solver_json = os.path.join(
+        os.path.dirname(ocp.code_export_directory),
+        'acados_ocp_' + model.name + '.json',
+    )
 
     if use_cython:
+        # Cython path has no build/generate flags — must remove stale code
+        if os.path.isdir(ocp.code_export_directory):
+            shutil.rmtree(ocp.code_export_directory)
+        if os.path.isfile(solver_json):
+            os.remove(solver_json)
         AcadosOcpSolver.generate(ocp, json_file=solver_json)
         AcadosOcpSolver.build(ocp.code_export_directory, with_cython=True)
         acados_ocp_solver = AcadosOcpSolver.create_cython_solver(solver_json)
     else:
-        acados_ocp_solver = AcadosOcpSolver(ocp, json_file=solver_json)
+        # ctypes path: build=True + generate=True already force full rebuild
+        acados_ocp_solver = AcadosOcpSolver(
+            ocp, json_file=solver_json,
+            build=True, generate=True,
+        )
 
     return acados_ocp_solver, ocp, model, f_system
