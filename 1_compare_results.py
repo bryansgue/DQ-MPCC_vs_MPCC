@@ -192,25 +192,21 @@ def load_real_data():
                               ref_quat_y, ref_quat_z])  # (4, M+1)
 
         # ── Orientation error via quaternion log (over N_ctrl samples) ───
-        # Reconstruct θ-based desired quaternion from the tangent at θ_k.
-        # In MPCC, the desired yaw = atan2(tangent_y, tangent_x) with
-        # roll=pitch=0, evaluated at the arc-length θ_k (not at time t_k).
-        # ref[3:6] is the tangent but time-indexed; we need the tangent
-        # at the actual θ_k.  However the tangent direction at θ_k is
-        # well approximated by the direction of e_total (lag direction).
-        # A simpler and exact approach: the ref quaternion at time index i
-        # is a decent proxy when the UAV roughly tracks on time, so we
-        # use it but note this is the main caveat.
-        ref_quat_w = d['ref'][6, :]       # qw_d
-        ref_quat_x = d['ref'][7, :]
-        ref_quat_y = d['ref'][8, :]
-        ref_quat_z = d['ref'][9, :]
-        ref_quat = np.vstack([ref_quat_w, ref_quat_x,
-                              ref_quat_y, ref_quat_z])  # (4, M+1)
+        # Use quat_d_theta (θ-indexed desired quaternion) if available
+        # (saved by updated simulation scripts). Fall back to time-indexed
+        # ref quaternion for backwards compatibility with old .mat files.
+        if 'quat_d_theta' in d:
+            ref_quat = d['quat_d_theta']   # (4, N_ctrl) — θ-indexed ✓
+            t_ctrl_idx = True
+        else:
+            # Legacy: time-indexed reference quaternion (approximate)
+            ref_quat = np.vstack([d['ref'][6, :], d['ref'][7, :],
+                                  d['ref'][8, :], d['ref'][9, :]])  # (4, M+1)
+            t_ctrl_idx = False
 
         ori_err = np.zeros(N_ctrl)
         for i in range(N_ctrl):
-            qd_i = ref_quat[:, i]
+            qd_i = ref_quat[:, i] if t_ctrl_idx else ref_quat[:, i]
             q_i  = quat[:, i]
             # conjugate qd  →  qd⁻¹
             qd_inv = np.array([qd_i[0], -qd_i[1], -qd_i[2], -qd_i[3]])
@@ -248,6 +244,12 @@ def load_real_data():
         # Reference position (time-indexed, for 3D plot)
         ref_pos = d['ref'][0:3, :]        # (3, M+1)
 
+        # Lap time and solver stats (from updated protocol)
+        t_lap_val = float(d['t_lap'].ravel()[0]) if 't_lap' in d else np.nan
+        solver_mean = float(d['t_solver_mean'].ravel()[0]) if 't_solver_mean' in d else np.nan
+        solver_max  = float(d['t_solver_max'].ravel()[0])  if 't_solver_max'  in d else np.nan
+        solver_std  = float(d['t_solver_std'].ravel()[0])  if 't_solver_std'  in d else np.nan
+
         return {
             't_states': t_orig,
             't_ctrl':   t_ctrl,
@@ -263,6 +265,10 @@ def load_real_data():
             'f':         thrust,             # (N_ctrl,)
             'tau':       torques,            # (N_ctrl, 3)
             's':         theta,              # (M+1,)
+            't_lap':     t_lap_val,          # [s]  lap completion time
+            'solver_mean': solver_mean,      # [ms] solver stats
+            'solver_max':  solver_max,
+            'solver_std':  solver_std,
         }
 
     raw_dq   = _extract(d_dq,   t_dq,   is_dq=True)
@@ -281,10 +287,11 @@ def load_real_data():
         out['pos'] = _resample_2d(raw['t_states'], raw['pos'].T, t_common)
         out['pos_ref'] = _resample_2d(raw['t_states'],
                                       raw['pos_ref'].T, t_common)
-        return out
-        out['pos'] = _resample_2d(raw['t_states'], raw['pos'].T, t_common)
-        out['pos_ref'] = _resample_2d(raw['t_states'],
-                                      raw['pos_ref'].T, t_common)
+        # Scalar KPIs (not resampled)
+        out['t_lap']       = raw['t_lap']
+        out['solver_mean'] = raw['solver_mean']
+        out['solver_max']  = raw['solver_max']
+        out['solver_std']  = raw['solver_std']
         return out
 
     data_dq   = _build_output(raw_dq,   t_common)
@@ -692,7 +699,118 @@ def print_summary_table(data_dq, data_base):
         dq_str   = f"{m_dq:.4f} ± {s_dq:.4f}  (max {x_dq:.4f})"
         ba_str   = f"{m_ba:.4f} ± {s_ba:.4f}  (max {x_ba:.4f})"
         print(f"  {name:<30s} │ {dq_str:>22s} │ {ba_str:>22s}")
+    print("─"*78)
+
+    # ── Lap time & solver KPIs (from updated experimental protocol) ──────
+    t_lap_dq   = data_dq.get('t_lap',   np.nan)
+    t_lap_base = data_base.get('t_lap', np.nan)
+    if not np.isnan(t_lap_dq) or not np.isnan(t_lap_base):
+        print(f"  {'Lap time [s]':<30s} │ {t_lap_dq:>22.3f} │ {t_lap_base:>22.3f}")
+    sol_dq   = data_dq.get('solver_mean', np.nan)
+    sol_base = data_base.get('solver_mean', np.nan)
+    if not np.isnan(sol_dq) or not np.isnan(sol_base):
+        sol_dq_str   = f"{sol_dq:.2f} ± {data_dq.get('solver_std', 0):.2f}  (max {data_dq.get('solver_max', 0):.2f})"
+        sol_base_str = f"{sol_base:.2f} ± {data_base.get('solver_std', 0):.2f}  (max {data_base.get('solver_max', 0):.2f})"
+        print(f"  {'Solver time [ms]':<30s} │ {sol_dq_str:>22s} │ {sol_base_str:>22s}")
     print("═"*78 + "\n")
+
+
+def save_latex_table(data_dq, data_base, filename=None):
+    """Write a publication-ready LaTeX table (booktabs) to a .tex file.
+
+    Compatible with IEEEtran and standard article classes.
+    Requires \\usepackage{booktabs} and \\usepackage{siunitx} in the preamble.
+    """
+    if filename is None:
+        filename = os.path.join(_OUTPUT_DIR, 'comparison_table.tex')
+
+    def _stats(arr):
+        return np.mean(arr), np.std(arr), np.max(arr)
+
+    # ── Collect all values ───────────────────────────────────────────────
+    # Symbol-only labels (no verbose name) — compact for IEEEtran columns
+    metrics = [
+        (r'$\|\mathbf{e}_p\|$ [m]',                     'pos_error'),
+        (r'$\|\mathrm{Log}(q_e)\|$ [rad]',              'ori_error'),
+        (r'$\|\boldsymbol{e}_c\|$ [m]',                 'rho_cont'),
+        (r'$\|\boldsymbol{e}_\ell\|$ [m]',              'rho_lag'),
+        (r'$v_\theta$ [m/s]',                           'us'),
+        (r'$\|\mathbf{v}\|$ [m/s]',                     'vtang'),
+    ]
+
+    t_lap_dq   = data_dq.get('t_lap',   float('nan'))
+    t_lap_base = data_base.get('t_lap', float('nan'))
+    sol_dq_m   = data_dq.get('solver_mean',  float('nan'))
+    sol_dq_s   = data_dq.get('solver_std',   0.0)
+    sol_dq_x   = data_dq.get('solver_max',   float('nan'))
+    sol_ba_m   = data_base.get('solver_mean', float('nan'))
+    sol_ba_s   = data_base.get('solver_std',  0.0)
+    sol_ba_x   = data_base.get('solver_max',  float('nan'))
+
+    # ── Build LaTeX ──────────────────────────────────────────────────────
+    lines = []
+    lines.append(r'% ────────────────────────────────────────────────────────────')
+    lines.append(r'% Comparison table: DQ-MPCC vs Baseline MPCC')
+    lines.append(r'% Generated automatically by compare_results.py')
+    lines.append(r'% Requires: \usepackage{booktabs,siunitx,multirow}')
+    lines.append(r'% ────────────────────────────────────────────────────────────')
+    lines.append(r'\begin{table}[t]')
+    lines.append(r'  \centering')
+    lines.append(r'  \caption{Performance comparison between DQ-MPCC and Baseline MPCC')
+    lines.append(r'           over a fixed 100\,m Lissajous path. Statistics are')
+    lines.append(r'           mean\,$\pm$\,std (max) computed over the full lap.}')
+    lines.append(r'  \label{tab:comparison}')
+    lines.append(r'  \setlength{\tabcolsep}{4pt}')
+    lines.append(r'  \begin{tabular}{l S[table-format=2.4] @{\,$\pm$\,} S[table-format=1.4]'
+                 r' S[table-format=2.4] S[table-format=2.4] @{\,$\pm$\,} S[table-format=1.4]'
+                 r' S[table-format=2.4]}')
+    lines.append(r'    \toprule')
+    lines.append(r'    \multirow{2}{*}{\textbf{}}')
+    lines.append(r'      & \multicolumn{3}{c}{\textbf{DQ-MPCC}}')
+    lines.append(r'      & \multicolumn{3}{c}{\textbf{Baseline MPCC}} \\')
+    lines.append(r'    \cmidrule(lr){2-4} \cmidrule(lr){5-7}')
+    lines.append(r'      & {Mean} & {Std} & {Max}')
+    lines.append(r'      & {Mean} & {Std} & {Max} \\')
+    lines.append(r'    \midrule')
+
+    for label, key in metrics:
+        m_dq, s_dq, x_dq = _stats(data_dq[key])
+        m_ba, s_ba, x_ba = _stats(data_base[key])
+        lines.append(
+            f'    {label}'
+            f' & {m_dq:.4f} & {s_dq:.4f} & {x_dq:.4f}'
+            f' & {m_ba:.4f} & {s_ba:.4f} & {x_ba:.4f} \\\\'
+        )
+
+    lines.append(r'    \midrule')
+
+    # Lap time (single value per controller — no std/max)
+    if not (np.isnan(t_lap_dq) and np.isnan(t_lap_base)):
+        lap_dq_str  = f'{t_lap_dq:.3f}' if not np.isnan(t_lap_dq)  else r'\text{--}'
+        lap_ba_str  = f'{t_lap_base:.3f}' if not np.isnan(t_lap_base) else r'\text{--}'
+        lines.append(
+            r'    $t_\mathrm{lap}$ [s]'
+            f' & \\multicolumn{{3}}{{c}}{{{lap_dq_str}}}'
+            f' & \\multicolumn{{3}}{{c}}{{{lap_ba_str}}} \\\\'
+        )
+
+    # Solver time
+    if not np.isnan(sol_dq_m):
+        lines.append(
+            r'    $t_\mathrm{solve}$ [ms]'
+            f' & {sol_dq_m:.2f} & {sol_dq_s:.2f} & {sol_dq_x:.2f}'
+            f' & {sol_ba_m:.2f} & {sol_ba_s:.2f} & {sol_ba_x:.2f} \\\\'
+        )
+
+    lines.append(r'    \bottomrule')
+    lines.append(r'  \end{tabular}')
+    lines.append(r'\end{table}')
+
+    tex = '\n'.join(lines) + '\n'
+
+    with open(filename, 'w') as f:
+        f.write(tex)
+    print(f'✓ LaTeX table saved to {filename}')
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -757,6 +875,7 @@ def main():
 
     # ── Summary statistics ───────────────────────────────────────────────
     print_summary_table(data_dq, data_base)
+    save_latex_table(data_dq, data_base)
 
     # ── Generate figures ─────────────────────────────────────────────────
     print(f"[INFO] Saving figures to {_OUTPUT_DIR}/\n")

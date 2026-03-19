@@ -80,14 +80,14 @@ int main()
     x_current[14] = 0.0;
 
   
-    x_current[0] = 1;
+    x_current[0] = 0.999999999999;
     x_current[1] = 0;
     x_current[2] = 0;
     x_current[3] = 0;
     x_current[4] = 0;
-    x_current[5] = 1.5;
+    x_current[5] = 1.4999999999985;
     x_current[6] = 0;
-    x_current[7] = 3;
+    x_current[7] = 2.9999999999969997;
     x_current[8] = 0;
     x_current[9] = 0;
     x_current[10] = 0;

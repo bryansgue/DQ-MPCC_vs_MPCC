@@ -18,7 +18,15 @@ import numpy as np
 import time
 import time as time_module
 import os
+import sys
 from scipy.io import savemat
+
+# ── Add parent directory to path for shared config ───────────────────────────
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from experiment_config import (
+    P0, Q0, V0, W0, THETA0,
+    VALUE, T_FINAL, FREC, T_PREDICTION, N_WAYPOINTS, S_MAX_MANUAL,
+)
 
 # ── Project modules ──────────────────────────────────────────────────────────
 from utils.numpy_utils import (
@@ -53,13 +61,10 @@ from utils.graficas import (
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Constants
+#  Constants — imported from experiment_config.py
+#  (VALUE, S_MAX_MANUAL, T_FINAL, FREC, T_PREDICTION, N_WAYPOINTS,
+#   P0, Q0, V0, W0, THETA0 are all set in experiment_config.py)
 # ═══════════════════════════════════════════════════════════════════════════════
-
-VALUE  = 5
-
-# Manual arc-length limit (set to None to use the full curve)
-S_MAX_MANUAL = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -82,12 +87,12 @@ def trayectoria(t):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
-    # ── Timing configuration ─────────────────────────────────────────────
-    t_final = 30                                       # [s]
-    frec    = 100                                       # [Hz]
-    t_s     = 1 / frec                                 # [s]
-    t_prediction = 0.3                                 # [s]
-    N_prediction = int(round(t_prediction / t_s))      # auto
+    # ── Timing configuration (from experiment_config.py) ─────────────────
+    t_final = T_FINAL
+    frec    = FREC
+    t_s     = 1 / frec
+    t_prediction = T_PREDICTION
+    N_prediction = int(round(t_prediction / t_s))
     print(f"[CONFIG]  frec={frec} Hz  |  t_s={t_s*1e3:.2f} ms  "
           f"|  t_prediction={t_prediction} s  |  N_prediction={N_prediction} steps")
 
@@ -122,19 +127,27 @@ def main():
     vel_real       = np.zeros((1, N_sim), dtype=np.double)
     vel_tangent    = np.zeros((1, N_sim), dtype=np.double)
     theta_history  = np.zeros((1, N_sim + 1), dtype=np.double)
+    quat_d_theta   = np.zeros((4, N_sim), dtype=np.double)     # desired quaternion at θ_k (θ-indexed)
     t_solver       = np.zeros((1, N_sim), dtype=np.double)
     t_loop         = np.zeros((1, N_sim), dtype=np.double)
 
-    # ── Initial state (15-dim: [dq(8), twist(6), θ₀=0]) ─────────────────
-    p0 = position_by_arc_length(0.0)
-    q0 = np.array(euler_to_quaternion(0, 0, 0))   # identity
-    dq0 = dq_from_pose_numpy(q0, p0)
+    # ── Initial state (15-dim: [dq(8), twist(6), θ₀]) ──────────────────
+    #    All initial conditions come from experiment_config.py
+    q0_normed = Q0 / (np.linalg.norm(Q0) + 1e-12)    # ensure unit quaternion
+    dq0 = dq_from_pose_numpy(q0_normed, P0)
 
     x = np.zeros((15, N_sim + 1), dtype=np.double)
     x[0:8, 0]  = dq0                              # dual quaternion
-    x[8:14, 0] = np.zeros(6)                      # twist = 0
-    x[14, 0]   = 0.0                              # θ₀ = 0
-    theta_history[0, 0] = 0.0
+    # twist = [ω_body; v_body].  V0 from config is in inertial frame,
+    # so we rotate it to body frame:  v_body = R(q0)^T * V0
+    from utils.dq_numpy_utils import quat_rotate_numpy
+    q0_inv = np.array([q0_normed[0], -q0_normed[1], -q0_normed[2], -q0_normed[3]])
+    v_body0 = quat_rotate_numpy(q0_inv, V0)       # R^T * V0
+    x[8:11, 0]  = W0                               # angular velocity (body)
+    x[11:14, 0] = v_body0                          # linear velocity  (body)
+    x[14, 0]    = THETA0                            # arc-length progress
+    theta_history[0, 0] = THETA0
+    print(f"[IC]  p0 = {P0}  |  q0 = {np.round(q0_normed,4)}  |  θ₀ = {THETA0}")
 
     # Also store in standard 13-dim format for plotting
     x_std = np.zeros((13, N_sim + 1), dtype=np.double)
@@ -167,7 +180,6 @@ def main():
     u_control = np.zeros((5, N_sim), dtype=np.double)
 
     # ── Create CasADi trajectory interpolation  (θ → reference) ──────────
-    N_WAYPOINTS = 30
     s_wp, pos_wp, tang_wp, quat_wp = build_waypoints(
         s_max, N_WAYPOINTS, position_by_arc_length, tangent_by_arc_length,
         euler_to_quat_fn=euler_to_quaternion,
@@ -200,6 +212,7 @@ def main():
     print("Initializing simulation...")
     print("Ready!!!")
     time_all = time.time()
+    t_lap    = np.nan          # lap time: filled when θ reaches s_max
 
     # Keep track of previous DQ for hemisphere correction
     dq_prev = x[0:8, 0].copy()
@@ -212,7 +225,8 @@ def main():
 
         # ── Stop when path is complete ────────────────────────────────────
         if x[14, k] >= s_max - 0.01:
-            print(f"[k={k:04d}]  Path complete at θ={x[14,k]:.3f} m. Stopping.")
+            t_lap = k * t_s        # wall time when lap completes [s]
+            print(f"[k={k:04d}]  Path complete at θ={x[14,k]:.3f} m  →  t_lap = {t_lap:.3f} s")
             N_sim = k
             break
 
@@ -274,6 +288,11 @@ def main():
         e_contorno[:, k], e_arrastre[:, k], e_total[:, k] = \
             mpcc_errors(pos_k, tang_k, sd_k)
 
+        # ── Desired quaternion at θ_k (for θ-indexed orientation error) ──
+        tang_k_xy = tang_k[:2]
+        psi_d_k   = np.arctan2(tang_k_xy[1], tang_k_xy[0])
+        quat_d_theta[:, k] = euler_to_quaternion(0.0, 0.0, psi_d_k)
+
         # ── Rate control ─────────────────────────────────────────────────
         elapsed = time.time() - tic
         remaining = t_s - elapsed
@@ -311,6 +330,7 @@ def main():
     vel_real     = vel_real[:, :N_sim]
     vel_tangent  = vel_tangent[:, :N_sim]
     theta_history= theta_history[:, :N_sim + 1]
+    quat_d_theta = quat_d_theta[:, :N_sim]
     t_solver     = t_solver[:, :N_sim]
     t_loop       = t_loop[:, :N_sim]
     t_plot       = t[:N_sim + 1]
@@ -329,33 +349,40 @@ def main():
     # Curvature for analysis plot
     curvature = compute_curvature(position_by_arc_length, s_max, N_samples=500)
 
+    # ── Output directory: always the folder where THIS script lives ──────
+    _script_dir = os.path.dirname(os.path.abspath(__file__))
+
     # ── Plots (use standard 13-dim for compatibility with plot functions)
     fig1 = plot_pose(x_std, xref_theta, t_plot)
-    fig1.savefig("1_pose.png");   print("✓ Saved 1_pose.png")
+    fig1.savefig(os.path.join(_script_dir, "1_pose.png"))
+    print("✓ Saved 1_pose.png")
 
     fig2 = plot_control(u_control[:4, :], t_plot[:N_sim])
-    fig2.savefig("2_control_actions.png"); print("✓ Saved 2_control_actions.png")
+    fig2.savefig(os.path.join(_script_dir, "2_control_actions.png"))
+    print("✓ Saved 2_control_actions.png")
 
     fig3 = plot_vel_lineal(x_std[3:6, :], t_plot)
-    fig3.savefig("3_vel_lineal.png");  print("✓ Saved 3_vel_lineal.png")
+    fig3.savefig(os.path.join(_script_dir, "3_vel_lineal.png"))
+    print("✓ Saved 3_vel_lineal.png")
 
     fig4 = plot_vel_angular(x_std[10:13, :], t_plot)
-    fig4.savefig("4_vel_angular.png"); print("✓ Saved 4_vel_angular.png")
+    fig4.savefig(os.path.join(_script_dir, "4_vel_angular.png"))
+    print("✓ Saved 4_vel_angular.png")
 
     fig5 = plot_velocity_analysis(
         vel_progres, vel_real, vel_tangent,
         curvature, theta_history, s_max, t_plot[:N_sim])
-    fig5.savefig("5_velocity_analysis.png", dpi=150)
+    fig5.savefig(os.path.join(_script_dir, "5_velocity_analysis.png"), dpi=150)
     print("✓ Saved 5_velocity_analysis.png")
 
     fig6 = plot_3d_trajectory(
         x_std, pos_ref, s_max=s_max,
         position_by_arc=position_by_arc_length, N_plot=600)
-    fig6.savefig("6_trajectory_3d.png", dpi=150)
+    fig6.savefig(os.path.join(_script_dir, "6_trajectory_3d.png"), dpi=150)
     print("✓ Saved 6_trajectory_3d.png")
 
     fig_vprog = plot_progress_velocity(vel_progres, vel_real, theta_history, t_plot[:N_sim])
-    fig_vprog.savefig("8_progress_velocity.png", dpi=150)
+    fig_vprog.savefig(os.path.join(_script_dir, "8_progress_velocity.png"), dpi=150)
     print("✓ Saved 8_progress_velocity.png")
 
     # ── Timing statistics ────────────────────────────────────────────────
@@ -409,7 +436,12 @@ def main():
         'vel_real': vel_real,
         'vel_tangent': vel_tangent,
         'theta_history': theta_history,
+        'quat_d_theta': quat_d_theta,        # desired quaternion at θ_k (θ-indexed, 4×N)
         's_max': s_max,
+        't_lap': t_lap,                      # [s] time to complete one full lap (KPI)
+        't_solver_mean': np.mean(t_solver) * 1e3,   # [ms]
+        't_solver_max':  np.max(t_solver)  * 1e3,   # [ms]
+        't_solver_std':  np.std(t_solver)  * 1e3,   # [ms]
     })
     print(f"✓ Results saved to {os.path.join(pwd, name_file)}")
 

@@ -584,12 +584,12 @@ void DQ_Drone_MPCC_acados_setup_nlp_in(DQ_Drone_MPCC_solver_capsule* capsule, co
     double* lbx0 = lubx0;
     double* ubx0 = lubx0 + NBX0;
     // change only the non-zero elements:
-    lbx0[0] = 1;
-    ubx0[0] = 1;
-    lbx0[5] = 1.5;
-    ubx0[5] = 1.5;
-    lbx0[7] = 3;
-    ubx0[7] = 3;
+    lbx0[0] = 0.999999999999;
+    ubx0[0] = 0.999999999999;
+    lbx0[5] = 1.4999999999985;
+    ubx0[5] = 1.4999999999985;
+    lbx0[7] = 2.9999999999969997;
+    ubx0[7] = 2.9999999999969997;
 
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, 0, "idxbx", idxbx0);
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, 0, "lbx", lbx0);
@@ -669,7 +669,7 @@ void DQ_Drone_MPCC_acados_setup_nlp_in(DQ_Drone_MPCC_solver_capsule* capsule, co
     double* lubx = calloc(2*NBX, sizeof(double));
     double* lbx = lubx;
     double* ubx = lubx + NBX;
-    ubx[0] = 62.82735345523335;
+    ubx[0] = 100;
 
     for (int i = 1; i < N; i++)
     {
@@ -888,9 +888,9 @@ void DQ_Drone_MPCC_acados_set_nlp_out(DQ_Drone_MPCC_solver_capsule* capsule)
     double* x0 = xu0;
 
     // initialize with x0
-    x0[0] = 1;
-    x0[5] = 1.5;
-    x0[7] = 3;
+    x0[0] = 0.999999999999;
+    x0[5] = 1.4999999999985;
+    x0[7] = 2.9999999999969997;
 
 
     double* u0 = xu0 + NX;

@@ -18,7 +18,15 @@ import numpy as np
 import time
 import time as time_module
 import os
+import sys
 from scipy.io import savemat
+
+# ── Add parent directory to path for shared config ───────────────────────────
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from experiment_config import (
+    P0, Q0, V0, W0, THETA0,
+    VALUE, T_FINAL, FREC, T_PREDICTION, N_WAYPOINTS, S_MAX_MANUAL,
+)
 
 # ── Project modules ──────────────────────────────────────────────────────────
 from utils.numpy_utils import (
@@ -44,14 +52,10 @@ from utils.graficas import (
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Constants
+#  Constants — imported from experiment_config.py
+#  (VALUE, S_MAX_MANUAL, T_FINAL, FREC, T_PREDICTION, N_WAYPOINTS,
+#   P0, Q0, V0, W0, THETA0 are all set in experiment_config.py)
 # ═══════════════════════════════════════════════════════════════════════════════
-
-VALUE  = 5
-
-# Manual arc-length limit (set to None to use the full curve, or a float to
-# stop early, e.g. S_MAX_MANUAL = 80.0 to only track the first 80 m).
-S_MAX_MANUAL = None   # None → use full curve  |  float → manual limit
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -74,12 +78,12 @@ def trayectoria(t):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
-    # ── Timing configuration ─────────────────────────────────────────────
-    t_final = 30                                       # [s]
-    frec    = 100                                       # [Hz]
-    t_s     = 1 / frec                                 # [s]
-    t_prediction = 0.3                                 # [s]
-    N_prediction = int(round(t_prediction / t_s))      # auto
+    # ── Timing configuration (from experiment_config.py) ─────────────────
+    t_final = T_FINAL
+    frec    = FREC
+    t_s     = 1 / frec
+    t_prediction = T_PREDICTION
+    N_prediction = int(round(t_prediction / t_s))
     print(f"[CONFIG]  frec={frec} Hz  |  t_s={t_s*1e3:.2f} ms  "
           f"|  t_prediction={t_prediction} s  |  N_prediction={N_prediction} steps")
 
@@ -114,19 +118,23 @@ def main():
     vel_real       = np.zeros((1, N_sim), dtype=np.double)     # real progress speed (dot(tangent, v))
     vel_tangent    = np.zeros((1, N_sim), dtype=np.double)     # ‖v(t)‖ actual speed
     theta_history  = np.zeros((1, N_sim + 1), dtype=np.double) # θ state
+    quat_d_theta   = np.zeros((4, N_sim), dtype=np.double)     # desired quaternion at θ_k (θ-indexed)
     t_solver       = np.zeros((1, N_sim), dtype=np.double)
     t_loop         = np.zeros((1, N_sim), dtype=np.double)
 
     # ── Initial state (14-dim: [p, v, q, ω, θ₀]) ───────────────────────
-    #    Start at θ₀ = 0 (beginning of the path)
-    p0 = position_by_arc_length(0.0)          # start ON the path
+    #    All initial conditions come from experiment_config.py
+    q0_normed = Q0 / (np.linalg.norm(Q0) + 1e-12)    # ensure unit quaternion
+
     x = np.zeros((14, N_sim + 1), dtype=np.double)
-    x[:, 0] = [p0[0], p0[1], p0[2],             # position (on path)
-               0.0, 0.0, 0.0,                   # velocity
-               1, 0, 0, 0,                       # quaternion (identity)
-               0.0, 0.0, 0.0,                    # angular velocity
-               0.0]                               # θ₀ = 0
+    x[:, 0] = [P0[0], P0[1], P0[2],                   # position  ℝ³
+               V0[0], V0[1], V0[2],                    # velocity  ℝ³
+               q0_normed[0], q0_normed[1],              # quaternion ℍ
+               q0_normed[2], q0_normed[3],
+               W0[0], W0[1], W0[2],                    # angular velocity ℝ³
+               THETA0]                                  # arc-length progress
     theta_history[0, 0] = x[13, 0]
+    print(f"[IC]  p0 = {P0}  |  q0 = {np.round(q0_normed,4)}  |  θ₀ = {THETA0}")
 
     # ── Desired yaw from tangent (precomputed for reference quaternions) ─
     xd_p_vals = xd_p(t)
@@ -157,7 +165,6 @@ def main():
     # ── Create CasADi trajectory interpolation  (θ → reference) ──────────
     #    Delegates to utils.numpy_utils.build_waypoints and
     #    utils.casadi_utils.create_*_interpolator_casadi.
-    N_WAYPOINTS = 30              # max error < 6 cm, ~10 ms solver
     s_wp, pos_wp, tang_wp, quat_wp = build_waypoints(
         s_max, N_WAYPOINTS, position_by_arc_length, tangent_by_arc_length,
         euler_to_quat_fn=euler_to_quaternion,
@@ -194,13 +201,15 @@ def main():
     # ══════════════════════════════════════════════════════════════════════
     print("Ready!!!")
     time_all = time.time()
+    t_lap    = np.nan          # lap time: filled when θ reaches s_max
 
     for k in range(N_sim):
         tic = time.time()
 
         # ── Stop when path is complete ────────────────────────────────────
         if x[13, k] >= s_max - 0.01:
-            print(f"[k={k:04d}]  Path complete at θ={x[13,k]:.3f} m. Stopping.")
+            t_lap = k * t_s        # wall time when lap completes [s]
+            print(f"[k={k:04d}]  Path complete at θ={x[13,k]:.3f} m  →  t_lap = {t_lap:.3f} s")
             N_sim = k   # trim storage arrays to actual run length
             break
 
@@ -255,6 +264,11 @@ def main():
         e_contorno[:, k], e_arrastre[:, k], e_total[:, k] = \
             mpcc_errors(x[0:3, k], tang_k, sd_k)
 
+        # ── Desired quaternion at θ_k (for θ-indexed orientation error) ──
+        tang_k_xy = tang_k[:2]
+        psi_d_k   = np.arctan2(tang_k_xy[1], tang_k_xy[0])
+        quat_d_theta[:, k] = euler_to_quaternion(0.0, 0.0, psi_d_k)
+
         # ── Print progress ───────────────────────────────────────────────
         overrun = " ⚠ OVERRUN" if elapsed > t_s else ""
         ratio_vtheta = vel_real[0,k] / (vel_progres[0,k] + 1e-8)
@@ -282,6 +296,7 @@ def main():
     vel_real     = vel_real[:, :N_sim]
     vel_tangent  = vel_tangent[:, :N_sim]
     theta_history= theta_history[:, :N_sim + 1]
+    quat_d_theta = quat_d_theta[:, :N_sim]
     t_solver     = t_solver[:, :N_sim]
     t_loop       = t_loop[:, :N_sim]
     t_plot       = t[:N_sim + 1]
@@ -300,35 +315,42 @@ def main():
     # ── Compute path curvature for analysis plot ─────────────────────────
     curvature = compute_curvature(position_by_arc_length, s_max, N_samples=500)
 
+    # ── Output directory: always the folder where THIS script lives ──────
+    _script_dir = os.path.dirname(os.path.abspath(__file__))
+
     fig1 = plot_pose(x[:13, :], xref_theta, t_plot)
-    fig1.savefig("1_pose.png");   print("✓ Saved 1_pose.png")
+    fig1.savefig(os.path.join(_script_dir, "1_pose.png"))
+    print("✓ Saved 1_pose.png")
 
     fig2 = plot_control(u_control[:4, :], t_plot[:N_sim])
-    fig2.savefig("2_control_actions.png"); print("✓ Saved 2_control_actions.png")
+    fig2.savefig(os.path.join(_script_dir, "2_control_actions.png"))
+    print("✓ Saved 2_control_actions.png")
 
     fig3 = plot_vel_lineal(x[3:6, :], t_plot)
-    fig3.savefig("3_vel_lineal.png");  print("✓ Saved 3_vel_lineal.png")
+    fig3.savefig(os.path.join(_script_dir, "3_vel_lineal.png"))
+    print("✓ Saved 3_vel_lineal.png")
 
     fig4 = plot_vel_angular(x[10:13, :], t_plot)
-    fig4.savefig("4_vel_angular.png"); print("✓ Saved 4_vel_angular.png")
+    fig4.savefig(os.path.join(_script_dir, "4_vel_angular.png"))
+    print("✓ Saved 4_vel_angular.png")
 
     # ── Velocity analysis: v_θ, v_real, ‖v‖, curvature ──────────────────
     fig5 = plot_velocity_analysis(
         vel_progres, vel_real, vel_tangent,
         curvature, theta_history, s_max, t_plot[:N_sim])
-    fig5.savefig("5_velocity_analysis.png", dpi=150)
+    fig5.savefig(os.path.join(_script_dir, "5_velocity_analysis.png"), dpi=150)
     print("✓ Saved 5_velocity_analysis.png")
 
     # ── 3D trajectory ────────────────────────────────────────────────────
     fig6 = plot_3d_trajectory(
         x, pos_ref, s_max=s_max,
         position_by_arc=position_by_arc_length, N_plot=600)
-    fig6.savefig("6_trajectory_3d.png", dpi=150)
+    fig6.savefig(os.path.join(_script_dir, "6_trajectory_3d.png"), dpi=150)
     print("✓ Saved 6_trajectory_3d.png")
 
     # ── Progress velocity (simple version) ───────────────────────────────
     fig_vprog = plot_progress_velocity(vel_progres, vel_real, theta_history, t_plot[:N_sim])
-    fig_vprog.savefig("8_progress_velocity.png", dpi=150)
+    fig_vprog.savefig(os.path.join(_script_dir, "8_progress_velocity.png"), dpi=150)
     print("✓ Saved 8_progress_velocity.png")
 
     # ── Timing statistics ────────────────────────────────────────────────
@@ -382,7 +404,12 @@ def main():
         'vel_real': vel_real,
         'vel_tangent': vel_tangent,
         'theta_history': theta_history,
+        'quat_d_theta': quat_d_theta,        # desired quaternion at θ_k (θ-indexed, 4×N)
         's_max': s_max,
+        't_lap': t_lap,                      # [s] time to complete one full lap (KPI)
+        't_solver_mean': np.mean(t_solver) * 1e3,   # [ms]
+        't_solver_max':  np.max(t_solver)  * 1e3,   # [ms]
+        't_solver_std':  np.std(t_solver)  * 1e3,   # [ms]
     })
     print(f"✓ Results saved to {os.path.join(pwd, name_file)}")
 

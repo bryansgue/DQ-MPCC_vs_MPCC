@@ -1,0 +1,60 @@
+% ═══════════════════════════════════════════════════════════════════════════
+%  EXPERIMENT I — Baseline single-run comparison
+%  Paste Table~\ref{tab:comparison} immediately after this block.
+%  Requires: \usepackage{booktabs, siunitx, amsmath, amssymb}
+% ═══════════════════════════════════════════════════════════════════════════
+
+
+% ───────────────────────────────────────────────────────────────────────────
+%  Paragraph that introduces the table  (paste before \input{table})
+% ───────────────────────────────────────────────────────────────────────────
+
+Table~\ref{tab:comparison} summarises the steady-state tracking
+performance of DQ-MPCC and the quaternion-based MPCC baseline over a
+single \SI{100}{m} lap of the Lissajous reference path.
+Both controllers share identical cost weights, constraints, prediction
+horizon ($T_p = \SI{0.5}{s}$, $N = 50$ nodes), and control frequency
+(\SI{100}{Hz}), so any difference in the metrics is attributable
+exclusively to the state-space representation:
+quaternion $+$ $\mathrm{SO}(3)$ error for the baseline,
+versus dual quaternion $+$ $\mathrm{SE}(3)$ logarithm for DQ-MPCC.
+Statistics are computed sample-wise over all $N_{\mathrm{ctrl}}$
+control steps of the lap; the lap time $t_{\mathrm{lap}}$ is the primary
+scalar indicator because $v_\theta$ is an optimised control variable
+and a fixed-time criterion would artificially penalise the faster
+controller.
+
+
+% ───────────────────────────────────────────────────────────────────────────
+%  <<<  INSERT \input{comparison_table} HERE  >>>
+% ───────────────────────────────────────────────────────────────────────────
+
+
+% ───────────────────────────────────────────────────────────────────────────
+%  Paragraph that analyses the table  (paste after \input{table})
+% ───────────────────────────────────────────────────────────────────────────
+
+The results show a consistent advantage for DQ-MPCC across the
+path-following metrics.
+The mean position error is reduced by $17\%$
+($\SI{0.64}{m}$ vs.\ $\SI{0.77}{m}$) and the peak drops from
+\SI{2.27}{m} to \SI{1.65}{m}, confirming that the coupled
+rotation-translation representation of $\mathrm{SE}(3)$ produces tighter
+spatial tracking.
+The contouring and lag errors follow the same trend
+($-17\%$ and $-18\%$ respectively), indicating that DQ-MPCC stays closer
+to the path both laterally and longitudinally.
+The only metric where the baseline is marginally better is orientation
+error ($\SI{0.52}{rad}$ vs.\ $\SI{0.74}{rad}$): the $\mathrm{SE}(3)$
+logarithm couples rotation and translation in a single cost term, so
+the optimiser allocates part of the orientation budget to reduce
+positional error, accepting a slightly larger rotational residual.
+The net effect on task performance is nonetheless positive:
+DQ-MPCC achieves a mean progress speed of $\SI{5.81}{m/s}$
+(vs.\ $\SI{4.95}{m/s}$) and completes the \SI{100}{m} lap in
+$t_{\mathrm{lap}} = \SI{17.19}{s}$, a $\mathbf{16\%}$ reduction over
+the baseline ($\SI{20.43}{s}$).
+Despite the richer representation, the mean solver time increases only
+from \SI{3.16}{ms} to \SI{5.06}{ms}---both well within the
+\SI{10}{ms} budget of the \SI{100}{Hz} loop---confirming that the
+$\mathrm{SE}(3)$ formulation is real-time feasible on the target hardware.

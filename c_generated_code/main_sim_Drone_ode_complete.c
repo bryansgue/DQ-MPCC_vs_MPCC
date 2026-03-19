@@ -85,7 +85,7 @@ int main()
     x_current[3] = 0;
     x_current[4] = 0;
     x_current[5] = 0;
-    x_current[6] = 1;
+    x_current[6] = 0.999999999999;
     x_current[7] = 0;
     x_current[8] = 0;
     x_current[9] = 0;
