@@ -39,22 +39,29 @@ from utils.casadi_utils import (
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-DEFAULT_Q_EC    = [10.0, 10.0, 10.0]            # Contouring error      [ex, ey, ez]
-DEFAULT_Q_EL    = [5.0, 5.0, 5.0]               # Lag error             [ex, ey, ez]
-DEFAULT_Q_Q     = [5.0, 5.0, 5.0]               # Quaternion log error  [roll, pitch, yaw]
-DEFAULT_U_MAT   = [0.1, 250.0, 250.0, 250.0]    # Control effort        [T, τx, τy, τz]
-DEFAULT_Q_OMEGA = [0.5, 0.5, 0.5]               # Angular velocity      [ωx, ωy, ωz]
-DEFAULT_Q_S     = 0.3                            # Progress: Q_s*(v_max-v_θ)²
+#DEFAULT_Q_EC    = [10.0, 10.0, 10.0]            # Contouring error      [ex, ey, ez]
+#DEFAULT_Q_EL    = [5.0, 5.0, 5.0]               # Lag error             [ex, ey, ez]
+#DEFAULT_Q_Q     = [5.0, 5.0, 5.0]               # Quaternion log error  [roll, pitch, yaw]
+#DEFAULT_U_MAT   = [0.1, 250.0, 250.0, 250.0]    # Control effort        [T, τx, τy, τz]
+#DEFAULT_Q_OMEGA = [0.5, 0.5, 0.5]               # Angular velocity      [ωx, ωy, ωz]
+#DEFAULT_Q_S     = 0.3                            # Progress: Q_s*(v_max-v_θ)²
 
+
+DEFAULT_Q_EC    = [13.57738255445416, 1.8890124348260142, 1.6715023759813776]
+DEFAULT_Q_EL    = [12.6214175909978, 28.348657413534657, 1.1913008526216196]
+DEFAULT_Q_Q     = [0.12810529227483344, 0.13436063883116614, 4.087587428847498]
+DEFAULT_U_MAT   = [0.010021926260341494, 87.89317517538485, 11.75052384151524, 113.50974128305475]
+DEFAULT_Q_OMEGA = [0.017449843366922332, 0.03216712507119171, 0.04936032393158435]
+DEFAULT_Q_S     = 0.5342721333724649
 
 
 
 G = 9.81
-DEFAULT_T_MAX      = 5 * G
+DEFAULT_T_MAX      = 10 * G
 DEFAULT_T_MIN      = 0.0
-DEFAULT_TAUX_MAX   = 0.1                         # ← was 0.03 — too restrictive!
-DEFAULT_TAUY_MAX   = 0.1                         # ← was 0.03
-DEFAULT_TAUZ_MAX   = 0.1                         # ← was 0.03
+DEFAULT_TAUX_MAX   = 0.2                         # ← was 0.03 — too restrictive!
+DEFAULT_TAUY_MAX   = 0.2                         # ← was 0.03
+DEFAULT_TAUZ_MAX   = 0.2                         # ← was 0.03
 DEFAULT_VTHETA_MIN = 0.0
 DEFAULT_VTHETA_MAX = 15.0
 
@@ -75,6 +82,7 @@ def create_mpcc_ocp_description(
     ocp = AcadosOcp()
     model, _, _, _ = f_system_model_mpcc()
     ocp.model = model
+    ocp.code_export_directory = 'c_generated_code_mpcc'
 
     ocp.solver_options.N_horizon = N_horizon
 
@@ -193,6 +201,9 @@ def build_mpcc_solver(x0, N_prediction, t_prediction, s_max,
         AcadosOcpSolver.build(ocp.code_export_directory, with_cython=True)
         acados_ocp_solver = AcadosOcpSolver.create_cython_solver(solver_json)
     else:
-        acados_ocp_solver = AcadosOcpSolver(ocp, json_file=solver_json)
+        acados_ocp_solver = AcadosOcpSolver(
+            ocp, json_file=solver_json,
+            build=True, generate=True,
+        )
 
     return acados_ocp_solver, ocp, model, f_system

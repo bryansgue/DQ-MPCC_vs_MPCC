@@ -82,10 +82,10 @@ def _quat_interp_by_arc(s: float, s_wp: np.ndarray, quat_wp: np.ndarray) -> np.n
 
 def _build_infrastructure():
     """Build trajectory, interpolation and solver ONCE."""
-    t_final = 15
+    t_final = 30
     frec    = 100
     t_s     = 1 / frec
-    t_prediction = 0.2
+    t_prediction = 0.3
     N_prediction = int(round(t_prediction / t_s))
 
     t = np.arange(0, t_final + t_s, t_s)
