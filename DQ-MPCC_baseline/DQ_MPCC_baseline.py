@@ -418,7 +418,7 @@ def main():
     pwd = "/home/bryansgue/Doctoral_Research/Matlab/Results_DQ_MPCC"
     if not os.path.exists(pwd) or not os.path.isdir(pwd):
         print(f"Path {pwd} does not exist. Using local directory.")
-        pwd = os.getcwd()
+        pwd = os.path.dirname(os.path.abspath(__file__))
 
     experiment_number = 1
     name_file = f"Results_DQ_MPCC_baseline_{experiment_number}.mat"

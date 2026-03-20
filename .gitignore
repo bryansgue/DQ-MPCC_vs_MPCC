@@ -5,6 +5,9 @@ __pycache__/
 
 # ── acados / C generated code ─────────────────────────────────────────────────
 **/c_generated_code/
+**/c_generated_code_mpcc/
+**/c_generated_code_dq/
+acados_ocp_*.json
 *.o
 *.so
 *.a

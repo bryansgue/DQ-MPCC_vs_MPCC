@@ -15,7 +15,7 @@ import numpy as np
 # ═════════════════════════════════════════════════════════════════════════════
 
 # Position [x, y, z] in ℝ³  (arbitrary, does NOT need to be on the path)
-P0 = np.array([3.0, 0.0, 6.0])
+P0 = np.array([0, 0.0, 6.0])
 
 # Orientation as unit quaternion [qw, qx, qy, qz] (scalar-first Hamilton)
 # Examples:

@@ -19,7 +19,7 @@ VELOCITIES = [8, 12, 15]
 
 # Number of Monte Carlo runs per speed per controller
 # ── Quick test: 2 runs.  Final experiment: set to 50 ──
-N_RUNS = 2
+N_RUNS = 5
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  Initial condition perturbations (applied to nominal IC from experiment_config)

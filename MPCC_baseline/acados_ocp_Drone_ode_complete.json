@@ -82,7 +82,7 @@
             0.0
         ],
         "lbx_0": [
-            3.0,
+            0.0,
             0.0,
             6.0,
             0.0,
@@ -131,7 +131,7 @@
             100.0
         ],
         "ubx_0": [
-            3.0,
+            0.0,
             0.0,
             6.0,
             0.0,
@@ -283,7 +283,7 @@
         "Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac_hess.c",
         "Drone_ode_complete_cost/Drone_ode_complete_cost_ext_cost_e_fun_jac.c"
     ],
-    "json_file": "acados_ocp_Drone_ode_complete.json",
+    "json_file": "/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/MPCC_baseline/acados_ocp_Drone_ode_complete.json",
     "model": {
         "con_h_expr": [],
         "con_h_expr_0": [],

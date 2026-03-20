@@ -133,8 +133,64 @@ def _style_boxplot(bp, color):
                   markeredgecolor=color, markeredgewidth=0.8)
 
 
+def _draw_data(ax, data_list, positions, color, width, N_BOX_MIN=5):
+    """Smart renderer: boxplot when N≥N_BOX_MIN, individual points + mean bar otherwise.
+
+    Parameters
+    ----------
+    data_list : list of ndarray   – one array per velocity (may include empty arrays).
+    positions : list of float     – x position for each velocity.
+    color     : str               – matplotlib color.
+    width     : float             – box / error-bar width.
+    N_BOX_MIN : int               – minimum N to use boxplot (default 5).
+    """
+    # Separate indices by rendering mode
+    box_pos, box_data = [], []
+    dot_pos, dot_data = [], []
+    for pos, d in zip(positions, data_list):
+        if len(d) == 0:
+            continue
+        if len(d) >= N_BOX_MIN:
+            box_pos.append(pos)
+            box_data.append(d)
+        else:
+            dot_pos.append(pos)
+            dot_data.append(d)
+
+    # ── Boxplot for large N ───────────────────────────────────────────────
+    if box_data:
+        bp = ax.boxplot(box_data, positions=box_pos, widths=width,
+                        patch_artist=True, notch=False,
+                        showfliers=True, whis=1.5)
+        _style_boxplot(bp, color)
+
+    # ── Individual points + mean bar for small N ──────────────────────────
+    rng = np.random.default_rng(0)
+    for pos, d in zip(dot_pos, dot_data):
+        # Jitter points horizontally so they don't overlap
+        jitter = rng.uniform(-width * 0.25, width * 0.25, size=len(d))
+        ax.scatter(pos + jitter, d,
+                   color=color, s=22, zorder=4, alpha=0.85,
+                   edgecolors='none')
+        # Mean line
+        ax.hlines(np.mean(d), pos - width * 0.40, pos + width * 0.40,
+                  colors=color, linewidths=1.8, zorder=5)
+        # Min–max whisker
+        ax.vlines(pos, np.min(d), np.max(d),
+                  colors=color, linewidths=1.0, linestyles='--', zorder=3,
+                  alpha=0.6)
+
+
 def plot_velocity_sweep_boxplot(results, failures, save=True):
-    """Double boxplot: RMSE_pos (top) + RMSE_ori (bottom) vs v_theta_max."""
+    """Velocity sweep figure: RMSE_pos (top) + RMSE_ori (bottom) vs v_theta_max.
+
+    Rendering is adaptive:
+      • N ≥ 5  → full boxplot  (median, IQR box, Tukey whiskers, outlier +)
+      • N < 5  → individual dots + mean bar + min/max whisker
+      • N = 0  → empty slot with failure annotation
+
+    Y-limits are computed automatically from the data.
+    """
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 5), sharex=True)
     fig.subplots_adjust(hspace=0.08, left=0.10, right=0.97,
                         top=0.94, bottom=0.12)
@@ -143,38 +199,55 @@ def plot_velocity_sweep_boxplot(results, failures, save=True):
     positions_dq   = [i * 1.0 - 0.20 for i in range(len(VELOCITIES))]
     positions_base = [i * 1.0 + 0.20 for i in range(len(VELOCITIES))]
 
-    for ax, metric, ylabel, ylim, yticks in [
-        (ax1, 'rmse_pos', r'Position RMSE [m]',     (0, 0.35), [0, 0.1, 0.2, 0.3]),
-        (ax2, 'rmse_ori', r'Orientation RMSE [rad]', (0, 0.45), [0, 0.1, 0.2, 0.3, 0.4]),
+    for ax, metric, ylabel in [
+        (ax1, 'rmse_pos', r'Position RMSE [m]'),
+        (ax2, 'rmse_ori', r'Orientation RMSE [rad]'),
     ]:
         data_dq   = [results['dq'][v][metric]   for v in VELOCITIES]
         data_base = [results['base'][v][metric] for v in VELOCITIES]
 
-        bp_dq = ax.boxplot(data_dq, positions=positions_dq, widths=width,
-                           patch_artist=True, notch=False,
-                           showfliers=True, whis=1.5)
-        bp_base = ax.boxplot(data_base, positions=positions_base, widths=width,
-                             patch_artist=True, notch=False,
-                             showfliers=True, whis=1.5)
+        _draw_data(ax, data_dq,   positions_dq,   C_DQ,   width)
+        _draw_data(ax, data_base, positions_base, C_BASE, width)
 
-        _style_boxplot(bp_dq, C_DQ)
-        _style_boxplot(bp_base, C_BASE)
-
+        # Auto y-limits: gather all valid data
+        all_vals = np.concatenate(
+            [d for d in data_dq + data_base if len(d) > 0]
+        ) if any(len(d) > 0 for d in data_dq + data_base) else np.array([0.0])
+        y_max = float(np.max(all_vals)) * 1.20
+        y_max = max(y_max, 0.1)
+        ax.set_ylim(0, y_max)
         ax.set_ylabel(ylabel)
-        ax.set_ylim(ylim)
-        ax.set_yticks(yticks)
         ax.yaxis.grid(True, linestyle='--', alpha=0.4, zorder=0)
         ax.set_axisbelow(True)
 
-    # Failure annotations on top subplot
+    # N label above each group (shows how many successful runs)
     for i, v in enumerate(VELOCITIES):
-        nf = failures['base'][v]
-        if nf > 0:
-            y_top = ax1.get_ylim()[1] * 0.92
-            label = rf'$\times${nf}' if _USE_TEX else f'x{nf}'
-            ax1.text(positions_base[i], y_top, label,
-                     ha='center', va='top', fontsize=7, color=C_BASE,
-                     fontweight='bold')
+        y_top = ax1.get_ylim()[1]
+        for ctrl, positions, color in [
+            ('dq',   positions_dq,   C_DQ),
+            ('base', positions_base, C_BASE),
+        ]:
+            n_ok = len(results[ctrl][v]['rmse_pos'])
+            nf   = failures[ctrl][v]
+            total = n_ok + nf
+            if n_ok == 0:
+                # All runs failed — annotate clearly
+                lbl = (r'$\times$all' if _USE_TEX else 'x all')
+                ax1.text(positions[i], y_top * 0.96, lbl,
+                         ha='center', va='top', fontsize=7,
+                         color=color, fontweight='bold')
+            elif nf > 0:
+                # Some failures — show n_ok / total
+                lbl = rf'$n$={n_ok}/{total}' if _USE_TEX else f'n={n_ok}/{total}'
+                ax1.text(positions[i], y_top * 0.96, lbl,
+                         ha='center', va='top', fontsize=6.5,
+                         color=color, fontweight='bold')
+            else:
+                # All succeeded — just show N quietly
+                lbl = rf'$n$={n_ok}' if _USE_TEX else f'n={n_ok}'
+                ax1.text(positions[i], y_top * 0.97, lbl,
+                         ha='center', va='top', fontsize=6,
+                         color=color, alpha=0.75)
 
     # Legend on top subplot
     patch_dq   = mpatches.Patch(facecolor=matplotlib.colors.to_rgba(C_DQ, 0.4),
@@ -186,7 +259,7 @@ def plot_velocity_sweep_boxplot(results, failures, save=True):
     # X-axis labels on bottom subplot only
     tick_pos = [i * 1.0 for i in range(len(VELOCITIES))]
     ax2.set_xticks(tick_pos)
-    ax2.set_xticklabels([f'{v} [m/s]' for v in VELOCITIES])
+    ax2.set_xticklabels([f'{v} m/s' for v in VELOCITIES])
     ax2.set_xlabel(r'Maximum progress speed $v_{\theta,\max}$')
     ax2.set_xlim(-0.6, len(VELOCITIES) - 0.4)
 
