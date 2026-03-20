@@ -1,16 +1,16 @@
 """
-mpcc_tuner.py  –  Bilevel optimisation of MPCC cost weights.
+dq_mpcc_tuner.py  –  Bilevel optimisation of DQ-MPCC cost weights.
 
 Architecture
 ────────────
   LEVEL 1 (outer):  Optuna (Bayesian / TPE) or CMA-ES optimises the
-                    gain vector θ_g = [Q_ec, Q_el, Q_q, U_mat, Q_omega, Q_s]
-  LEVEL 2 (inner):  Full MPCC simulation with acados (runs ~30 s per eval).
+                    gain vector θ_g = [Q_phi, Q_ec, Q_el, U_mat, Q_omega, Q_s]
+  LEVEL 2 (inner):  Full DQ-MPCC simulation with acados (runs ~30 s per eval).
                     The solver was compiled ONCE with symbolic parameters.
 
-The meta-cost uses the SAME cost function as the MPCC solver:
+The meta-cost uses the SAME cost function as the DQ-MPCC solver:
 
-    J_stage = ec'Q_ec·ec + e_lag'Q_el·e_lag + log_q'Q_q·log_q
+    J_stage = φ'Q_φ·φ + ρ_cont'Q_ec·ρ_cont + ρ_lag'Q_el·ρ_lag
             + u'U·u + ω'Q_ω·ω + Q_s·(v_max − v_θ)²
 
 accumulated over the entire trajectory.  An additional penalty for
@@ -18,10 +18,10 @@ incomplete path traversal is added to discourage premature stops.
 
 Usage
 ─────
-    cd /home/bryansgue/dev/ros2/MPCC_baseline
-    python -m tuning.mpcc_tuner                     # run with defaults
-    python -m tuning.mpcc_tuner --n-trials 200      # more trials
-    python -m tuning.mpcc_tuner --sampler cmaes     # use CMA-ES
+    cd /home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline
+    python -m tuning.dq_mpcc_tuner                     # run with defaults
+    python -m tuning.dq_mpcc_tuner --n-trials 200      # more trials
+    python -m tuning.dq_mpcc_tuner --sampler cmaes     # use CMA-ES
 
 After optimisation, the best weights are printed and saved to
     tuning/best_weights.json
@@ -42,7 +42,7 @@ for p in (PROJECT_ROOT, WORKSPACE_ROOT):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from MPCC_simulation_tuner import run_simulation
+from DQ_MPCC_simulation_tuner import run_simulation
 
 # ── Shared tuning configuration ──────────────────────────────────────────────
 from tuning_config import (
@@ -67,18 +67,18 @@ except ImportError:
 
 # Each entry: (name, low, high, log_scale)
 SEARCH_SPACE = [
-    # Q_ec: contouring error [x, y, z]
+    # Q_phi: orientation error (so(3)) [φ_x, φ_y, φ_z]  (rotation log-map)
+    ('Q_phix', *Q_ROT_RANGE),
+    ('Q_phiy', *Q_ROT_RANGE),
+    ('Q_phiz', *Q_ROT_RANGE),
+    # Q_ec: contouring error [ρ_cx, ρ_cy, ρ_cz]
     ('Q_ecx',  *Q_EC_RANGE),
     ('Q_ecy',  *Q_EC_RANGE),
     ('Q_ecz',  *Q_EC_RANGE),
-    # Q_el: lag error [x, y, z]
+    # Q_el: lag error [ρ_lx, ρ_ly, ρ_lz]
     ('Q_elx',  *Q_EL_RANGE),
     ('Q_ely',  *Q_EL_RANGE),
     ('Q_elz',  *Q_EL_RANGE),
-    # Q_q: quaternion error [roll, pitch, yaw]  (rotation log-map)
-    ('Q_qx',   *Q_ROT_RANGE),
-    ('Q_qy',   *Q_ROT_RANGE),
-    ('Q_qz',   *Q_ROT_RANGE),
     # U_mat: control effort [T, τx, τy, τz]
     ('U_T',    *U_T_RANGE),
     ('U_tx',   *U_TAU_RANGE),
@@ -103,11 +103,11 @@ def trial_to_weights(trial) -> dict:
             params[name] = trial.suggest_float(name, low, high)
 
     return {
-        'Q_ec':    [params['Q_ecx'], params['Q_ecy'], params['Q_ecz']],
-        'Q_el':    [params['Q_elx'], params['Q_ely'], params['Q_elz']],
-        'Q_q':     [params['Q_qx'],  params['Q_qy'],  params['Q_qz']],
-        'U_mat':   [params['U_T'],   params['U_tx'],  params['U_ty'], params['U_tz']],
-        'Q_omega': [params['Q_wx'],  params['Q_wy'],  params['Q_wz']],
+        'Q_phi':   [params['Q_phix'], params['Q_phiy'], params['Q_phiz']],
+        'Q_ec':    [params['Q_ecx'],  params['Q_ecy'],  params['Q_ecz']],
+        'Q_el':    [params['Q_elx'],  params['Q_ely'],  params['Q_elz']],
+        'U_mat':   [params['U_T'],    params['U_tx'],   params['U_ty'], params['U_tz']],
+        'Q_omega': [params['Q_wx'],   params['Q_wy'],   params['Q_wz']],
         'Q_s':     params['Q_s'],
     }
 
@@ -115,11 +115,11 @@ def trial_to_weights(trial) -> dict:
 def dict_to_weights(d: dict) -> dict:
     """Re-pack a flat dict (from best_params) into the weights dict format."""
     return {
-        'Q_ec':    [d['Q_ecx'], d['Q_ecy'], d['Q_ecz']],
-        'Q_el':    [d['Q_elx'], d['Q_ely'], d['Q_elz']],
-        'Q_q':     [d['Q_qx'],  d['Q_qy'],  d['Q_qz']],
-        'U_mat':   [d['U_T'],   d['U_tx'],  d['U_ty'], d['U_tz']],
-        'Q_omega': [d['Q_wx'],  d['Q_wy'],  d['Q_wz']],
+        'Q_phi':   [d['Q_phix'], d['Q_phiy'], d['Q_phiz']],
+        'Q_ec':    [d['Q_ecx'],  d['Q_ecy'],  d['Q_ecz']],
+        'Q_el':    [d['Q_elx'],  d['Q_ely'],  d['Q_elz']],
+        'U_mat':   [d['U_T'],    d['U_tx'],   d['U_ty'], d['U_tz']],
+        'Q_omega': [d['Q_wx'],   d['Q_wy'],   d['Q_wz']],
         'Q_s':     d['Q_s'],
     }
 
@@ -129,9 +129,9 @@ def dict_to_weights(d: dict) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def objective(trial) -> float:
-    """Evaluate one set of gains by running the full MPCC simulation.
+    """Evaluate one set of gains by running the full DQ-MPCC simulation.
 
-    The objective is the MEAN MPCC stage cost (same formula used inside the
+    The objective is the MEAN DQ-MPCC stage cost (same formula used inside the
     acados solver), plus a large penalty if the path is not fully completed.
     """
     weights = trial_to_weights(trial)
@@ -150,8 +150,10 @@ def objective(trial) -> float:
     rmse_l    = result['rmse_lag']
     effort    = result['mean_effort']
 
-    # ── Objective = MPCC cost + completion penalty ───────────────────────
-    J = mpcc_cost 
+    # ── Objective = DQ-MPCC cost + completion penalty ────────────────────
+    J = mpcc_cost
+    if compl < 0.99:
+        J += W_INCOMPLETE * (1.0 - compl)
 
     print(f"  [Trial {trial.number:3d}]  J={J:8.3f}  "
           f"J_mpcc={mpcc_cost:.4f}  "
@@ -177,13 +179,13 @@ def objective(trial) -> float:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Bilevel optimisation of MPCC cost weights')
+        description='Bilevel optimisation of DQ-MPCC cost weights')
     parser.add_argument('--n-trials', type=int, default=DEFAULT_N_TRIALS,
                         help=f'Number of Optuna trials (default: {DEFAULT_N_TRIALS})')
     parser.add_argument('--sampler', type=str, default=DEFAULT_SAMPLER,
                         choices=['tpe', 'cmaes'],
                         help=f'Optuna sampler: tpe or cmaes (default: {DEFAULT_SAMPLER})')
-    parser.add_argument('--study-name', type=str, default='mpcc_tuning',
+    parser.add_argument('--study-name', type=str, default='dq_mpcc_tuning',
                         help='Optuna study name')
     parser.add_argument('--db', type=str, default=None,
                         help='Optuna storage (e.g. sqlite:///tuning.db). '
@@ -196,7 +198,7 @@ def main():
 
     # ── Force first infrastructure build (compiles solver ONCE) ──────────
     print("="*70)
-    print("  MPCC BILEVEL GAIN TUNER")
+    print("  DQ-MPCC BILEVEL GAIN TUNER")
     print("="*70)
     print(f"\n  Sampler : {args.sampler.upper()}")
     print(f"  Trials  : {args.n_trials}")
@@ -258,7 +260,7 @@ def main():
         'user_attrs': {k: float(v) for k, v in best.user_attrs.items()
                        if isinstance(v, (int, float))},
         'objective_info': {
-            'type': 'mean_mpcc_cost + completion_penalty',
+            'type': 'mean_dq_mpcc_cost + completion_penalty',
             'W_INCOMPLETE': W_INCOMPLETE,
         },
     }
@@ -268,10 +270,10 @@ def main():
     print(f"\n[3/3] ✓ Best weights saved to {out_path}")
 
     # ── Print copy-pasteable format ──────────────────────────────────────
-    print("\n  ── Copy-paste into mpcc_controller.py ──")
+    print("\n  ── Copy-paste into dq_mpcc_controller.py ──")
+    print(f"  DEFAULT_Q_PHI   = {best_weights['Q_phi']}")
     print(f"  DEFAULT_Q_EC    = {best_weights['Q_ec']}")
     print(f"  DEFAULT_Q_EL    = {best_weights['Q_el']}")
-    print(f"  DEFAULT_Q_Q     = {best_weights['Q_q']}")
     print(f"  DEFAULT_U_MAT   = {best_weights['U_mat']}")
     print(f"  DEFAULT_Q_OMEGA = {best_weights['Q_omega']}")
     print(f"  DEFAULT_Q_S     = {best_weights['Q_s']}")

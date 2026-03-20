@@ -17,6 +17,8 @@ Parameter vector  p ∈ ℝ¹⁷:
 Original file: ocp/mpcc_controller.py  (UNTOUCHED)
 """
 
+import os
+import sys
 import numpy as np
 from casadi import MX, dot, vertcat, diag as casadi_diag
 from acados_template import AcadosOcp, AcadosOcpSolver
@@ -25,6 +27,18 @@ from models.quadrotor_mpcc_model import f_system_model_mpcc, MASS
 from utils.casadi_utils import (
     quat_error_casadi as quaternion_error,
     quat_log_casadi   as log_cuaternion_casadi,
+)
+
+# ── Shared tuning configuration (control limits, v_theta_max, etc.) ──────────
+_WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
+if _WORKSPACE_ROOT not in sys.path:
+    sys.path.insert(0, _WORKSPACE_ROOT)
+from tuning_config import (
+    T_MAX as _CFG_T_MAX, T_MIN as _CFG_T_MIN,
+    TAUX_MAX as _CFG_TAUX_MAX, TAUY_MAX as _CFG_TAUY_MAX,
+    TAUZ_MAX as _CFG_TAUZ_MAX,
+    VTHETA_MIN as _CFG_VTHETA_MIN, VTHETA_MAX as _CFG_VTHETA_MAX,
 )
 
 
@@ -40,14 +54,14 @@ DEFAULT_U_MAT   = [0.010021926260341494, 87.89317517538485, 11.75052384151524, 1
 DEFAULT_Q_OMEGA = [0.017449843366922332, 0.03216712507119171, 0.04936032393158435]
 DEFAULT_Q_S     = 0.5342721333724649                       # Progress: Q_s*(v_max-v_θ)²
 
-G = 9.81
-DEFAULT_T_MAX      = 10 * G
-DEFAULT_T_MIN      = 0.0
-DEFAULT_TAUX_MAX   = 0.5                         # ← was 0.03 — too restrictive!
-DEFAULT_TAUY_MAX   = 0.5                         # ← was 0.03
-DEFAULT_TAUZ_MAX   = 0.5                         # ← was 0.03
-DEFAULT_VTHETA_MIN = 0.0
-DEFAULT_VTHETA_MAX = 15.0
+# ── Control limits from shared tuning_config.py ──────────────────────────────
+DEFAULT_T_MAX      = _CFG_T_MAX
+DEFAULT_T_MIN      = _CFG_T_MIN
+DEFAULT_TAUX_MAX   = _CFG_TAUX_MAX
+DEFAULT_TAUY_MAX   = _CFG_TAUY_MAX
+DEFAULT_TAUZ_MAX   = _CFG_TAUZ_MAX
+DEFAULT_VTHETA_MIN = _CFG_VTHETA_MIN
+DEFAULT_VTHETA_MAX = _CFG_VTHETA_MAX
 
 
 def weights_to_param_vector(weights: dict | None = None) -> np.ndarray:

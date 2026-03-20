@@ -1,14 +1,14 @@
 """
-MPCC_simulation_tuner.py  –  Headless MPCC simulation for bilevel gain tuning.
+DQ_MPCC_simulation_tuner.py  –  Headless DQ-MPCC simulation for bilevel gain tuning.
 
-This is a COPY of MPCC_baseline.py modified to:
+This is a COPY of DQ_MPCC_baseline.py modified to:
   1. Accept a weights dict as input
   2. Use the tunable controller (gains as runtime parameters → no recompilation)
   3. Run WITHOUT real-time sleep (as fast as possible)
   4. Return a metrics dict instead of generating plots
-  5. Be importable as a module: `from MPCC_simulation_tuner import run_simulation`
+  5. Be importable as a module: `from DQ_MPCC_simulation_tuner import run_simulation`
 
-Original file: MPCC_baseline.py  (UNTOUCHED)
+Original file: DQ_MPCC_baseline.py  (UNTOUCHED)
 """
 
 import os
@@ -35,17 +35,28 @@ from utils.numpy_utils import (
     build_arc_length_parameterisation,
     build_waypoints,
     mpcc_errors,
-    rk4_step_mpcc,
-    quat_error_numpy,
-    quat_log_numpy,
+)
+from utils.dq_numpy_utils import (
+    dq_from_pose_numpy,
+    dq_get_position_numpy,
+    dq_get_quaternion_numpy,
+    dq_normalize,
+    dq_hemisphere_correction,
+    quat_rotate_numpy,
+    rk4_step_dq_mpcc,
+    state15_to_standard13,
+    dq_error_numpy,
+    ln_dual_numpy,
+    rotate_tangent_to_desired_frame_numpy,
+    lag_contouring_decomposition_numpy,
 )
 from utils.casadi_utils import (
     create_position_interpolator_casadi as create_casadi_position_interpolator,
     create_tangent_interpolator_casadi  as create_casadi_tangent_interpolator,
     create_quat_interpolator_casadi     as create_casadi_quat_interpolator,
 )
-from ocp.mpcc_controller_tuner import (
-    build_mpcc_solver_tunable,
+from ocp.dq_mpcc_controller_tuner import (
+    build_dq_mpcc_solver_tunable,
     weights_to_param_vector,
     N_PARAMS,
     DEFAULT_VTHETA_MAX,
@@ -53,7 +64,7 @@ from ocp.mpcc_controller_tuner import (
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Trajectory (same as MPCC_baseline.py, using tuning_config values)
+#  Trajectory (same as DQ_MPCC_baseline.py, using tuning_config values)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _trayectoria(t):
@@ -72,14 +83,13 @@ def _trayectoria(t):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _INFRA = None          # will hold the precomputed trajectory + solver
-_INFRA_WEIGHTS = None  # last weights used (to detect if p must be updated)
 
 
 def _quat_interp_by_arc(s: float, s_wp: np.ndarray, quat_wp: np.ndarray) -> np.ndarray:
     """Piecewise-linear quaternion interpolation at arc-length s (NumPy).
 
-    Uses SLERP approximation via normalised linear interpolation (NLERP),
-    which is accurate enough for small waypoint spacing.
+    Uses NLERP (normalised linear interpolation), accurate enough for
+    small waypoint spacing.
     """
     s = np.clip(s, s_wp[0], s_wp[-1])
     idx = np.searchsorted(s_wp, s, side='right') - 1
@@ -129,21 +139,24 @@ def _build_infrastructure():
     gamma_vel  = create_casadi_tangent_interpolator(s_wp, tang_wp)
     gamma_quat = create_casadi_quat_interpolator(s_wp, quat_wp)
 
-    # Initial state — start ON the path
+    # Initial state — start ON the path with identity quaternion
     p0 = position_by_arc_length(0.0)
-    x0 = np.array([p0[0], p0[1], p0[2],
-                    0.0, 0.0, 0.0,
-                    1, 0, 0, 0,
-                    0.0, 0.0, 0.0,
-                    0.0])
+    q0 = np.array([1.0, 0.0, 0.0, 0.0])
+    dq0 = dq_from_pose_numpy(q0, p0)
 
-    print("[TUNER] Building tunable MPCC solver (compiles ONCE) ...")
-    solver, ocp, model, f = build_mpcc_solver_tunable(
+    x0 = np.zeros(15)
+    x0[0:8] = dq0              # dual quaternion
+    x0[8:11] = [0, 0, 0]      # angular velocity (body)
+    x0[11:14] = [0, 0, 0]     # linear velocity  (body)
+    x0[14] = 0.0               # arc-length progress
+
+    print("[DQ-TUNER] Building tunable DQ-MPCC solver (compiles ONCE) ...")
+    solver, ocp, model, f = build_dq_mpcc_solver_tunable(
         x0, N_prediction, t_prediction, s_max=s_max,
         gamma_pos=gamma_pos, gamma_vel=gamma_vel, gamma_quat=gamma_quat,
         use_cython=True,
     )
-    print("[TUNER] Solver ready.")
+    print("[DQ-TUNER] Solver ready.")
 
     return {
         't': t, 't_s': t_s, 't_final': t_final,
@@ -170,15 +183,15 @@ def _get_infra():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
-    """Run a full MPCC simulation with the given weights.
+    """Run a full DQ-MPCC simulation with the given weights.
 
     Parameters
     ----------
     weights : dict or None
         Cost weight overrides.  Keys:
+            'Q_phi'   – [3] orientation error  (so(3))
             'Q_ec'    – [3] contouring error
             'Q_el'    – [3] lag error
-            'Q_q'     – [3] quaternion error
             'U_mat'   – [4] control effort
             'Q_omega' – [3] angular velocity
             'Q_s'     – float  progress speed
@@ -195,10 +208,10 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
         'path_completed' – fraction of path completed  [0, 1]
         'mean_vtheta'    – mean progress speed v_θ
         'mean_solver_ms' – mean solver time [ms]
-        'mean_mpcc_cost' – mean MPCC stage cost (same formula as solver)
-        'total_mpcc_cost'– total accumulated MPCC cost
+        'mean_mpcc_cost' – mean DQ-MPCC stage cost (same formula as solver)
+        'total_mpcc_cost'– total accumulated DQ-MPCC cost
         'N_steps'        – number of simulation steps
-        'x'              – state trajectory   (14, N+1)
+        'x'              – state trajectory   (15, N+1)
         'u'              – control trajectory (5, N)
         'e_contorno'     – contouring error   (3, N)
         'e_lag'          – lag error           (3, N)
@@ -220,7 +233,7 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
     f              = infra['f']
     x0             = infra['x0'].copy()
 
-    nx = model.x.size()[0]   # 14
+    nx = model.x.size()[0]   # 15
     nu = model.u.size()[0]   # 5
 
     # ── Set runtime parameters on ALL stages ─────────────────────────────
@@ -228,11 +241,11 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
     for stage in range(N_prediction + 1):
         solver.set(stage, "p", p_vec)
 
-    # ── Extract weight matrices for numerical MPCC cost computation ──────
+    # ── Extract weight values for numerical DQ-MPCC cost computation ─────
     w = weights or {}
-    Q_ec_vec    = np.array(w.get('Q_ec',    p_vec[0:3]))
-    Q_el_vec    = np.array(w.get('Q_el',    p_vec[3:6]))
-    Q_q_vec     = np.array(w.get('Q_q',     p_vec[6:9]))
+    Q_phi_vec   = np.array(w.get('Q_phi',   p_vec[0:3]))
+    Q_ec_vec    = np.array(w.get('Q_ec',    p_vec[3:6]))
+    Q_el_vec    = np.array(w.get('Q_el',    p_vec[6:9]))
     U_mat_vec   = np.array(w.get('U_mat',   p_vec[9:13]))
     Q_omega_vec = np.array(w.get('Q_omega', p_vec[13:16]))
     Q_s_val     = float(w.get('Q_s',        p_vec[16]))
@@ -247,7 +260,7 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
     vel_progres  = np.zeros((1, N_sim))
     theta_hist   = np.zeros((1, N_sim + 1))
     t_solver     = np.zeros(N_sim)
-    mpcc_cost    = np.zeros(N_sim)          # per-step MPCC stage cost
+    mpcc_cost    = np.zeros(N_sim)          # per-step DQ-MPCC stage cost
 
     x[:, 0] = x0
     theta_hist[0, 0] = 0.0
@@ -258,13 +271,16 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
     for stage in range(N_prediction):
         solver.set(stage, "u", np.zeros(nu))
 
+    # Keep track of previous DQ for hemisphere correction
+    dq_prev = x[0:8, 0].copy()
+
     # ── Control loop (no sleep — fast as possible) ───────────────────────
     actual_steps = N_sim
     success = True
 
     for k in range(N_sim):
         # Stop when path is complete
-        if x[13, k] >= s_max - 0.01:
+        if x[14, k] >= s_max - 0.01:
             actual_steps = k
             break
 
@@ -281,7 +297,6 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
             # status 2 = max iter reached but still usable
             if verbose:
                 print(f"[k={k}] Solver failed with status {status}")
-            # Continue with last good control rather than aborting
             if k > 0:
                 u_control[:, k] = u_control[:, k-1]
             else:
@@ -290,45 +305,64 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
             u_control[:, k] = solver.get(0, "u")
 
         vel_progres[0, k]  = u_control[4, k]
-        theta_hist[0, k]   = x[13, k]
+        theta_hist[0, k]   = x[14, k]
 
-        # System evolution (RK4)
-        x[:, k + 1] = rk4_step_mpcc(x[:, k], u_control[:, k], t_s, f)
-        x[13, k + 1] = np.clip(x[13, k + 1], 0.0, s_max)
-        theta_hist[0, k + 1] = x[13, k + 1]
+        # System evolution (RK4, 15 states)
+        x[:, k + 1] = rk4_step_dq_mpcc(x[:, k], u_control[:, k], t_s, f)
 
-        # Compute errors
-        theta_k = x[13, k]
+        # Post-integration normalization
+        x[0:8, k + 1] = dq_normalize(x[0:8, k + 1])
+        x[0:8, k + 1] = dq_hemisphere_correction(x[0:8, k + 1], dq_prev)
+        dq_prev = x[0:8, k + 1].copy()
+
+        # Clamp θ
+        x[14, k + 1] = np.clip(x[14, k + 1], 0.0, s_max)
+        theta_hist[0, k + 1] = x[14, k + 1]
+
+        # Compute classic MPCC errors (for metrics)
+        theta_k = x[14, k]
         sd_k    = pos_by_arc(theta_k)
         tang_k  = tang_by_arc(theta_k)
+        pos_k   = dq_get_position_numpy(x[0:8, k])
         e_contorno[:, k], e_arrastre[:, k], e_total[:, k] = \
-            mpcc_errors(x[0:3, k], tang_k, sd_k)
+            mpcc_errors(pos_k, tang_k, sd_k)
 
-        # ── Compute MPCC stage cost (same formula as solver) ─────────
-        # Quaternion error
-        qd_k     = _quat_interp_by_arc(theta_k, s_wp, quat_wp)
-        q_err_k  = quat_error_numpy(x[6:10, k], qd_k)
-        log_q_k  = quat_log_numpy(q_err_k)        # (3,)
+        # ── Compute DQ-MPCC stage cost (same formula as solver) ──────
+        # Desired quaternion at θ_k
+        qd_k = _quat_interp_by_arc(theta_k, s_wp, quat_wp)
+        sd_k_pos = pos_by_arc(theta_k)
 
-        ec_k     = e_contorno[:, k]                # (3,)
-        el_k     = e_arrastre[:, k]                # (3,)
-        omega_k  = x[10:13, k]                     # (3,)
-        u_k      = u_control[0:4, k]               # (4,)  T, τx, τy, τz
+        # Build desired DQ
+        dq_desired_k = dq_from_pose_numpy(qd_k, sd_k_pos)
+
+        # DQ error + Log
+        dq_err_k = dq_error_numpy(dq_desired_k, x[0:8, k])
+        log_err_k = ln_dual_numpy(dq_err_k)    # [φ(3); ρ(3)]
+
+        phi_k = log_err_k[0:3]
+        rho_k = log_err_k[3:6]
+
+        # Lag-contouring decomposition in the desired body frame
+        tang_body_k = rotate_tangent_to_desired_frame_numpy(tang_k, qd_k)
+        rho_lag_k, rho_cont_k = lag_contouring_decomposition_numpy(rho_k, tang_body_k)
+
+        omega_k  = x[8:11, k]                     # angular velocity
+        u_k      = u_control[0:4, k]              # T, τx, τy, τz
         vtheta_k = u_control[4, k]
 
-        # J_k = ec'Q_ec·ec + el'Q_el·el + logq'Q_q·logq
+        # J_k = φ'Q_φ·φ + ρ_cont'Q_ec·ρ_cont + ρ_lag'Q_el·ρ_lag
         #      + u'U·u + ω'Q_ω·ω + Q_s*(v_max - v_θ)²
         mpcc_cost[k] = (
-            np.dot(ec_k**2,    Q_ec_vec)
-            + np.dot(el_k**2,    Q_el_vec)
-            + np.dot(log_q_k**2, Q_q_vec)
-            + np.dot(u_k**2,     U_mat_vec)
-            + np.dot(omega_k**2, Q_omega_vec)
+            np.dot(phi_k**2,      Q_phi_vec)
+            + np.dot(rho_cont_k**2, Q_ec_vec)
+            + np.dot(rho_lag_k**2,  Q_el_vec)
+            + np.dot(u_k**2,        U_mat_vec)
+            + np.dot(omega_k**2,    Q_omega_vec)
             + Q_s_val * (v_theta_max - vtheta_k)**2
         )
 
         if verbose and k % 200 == 0:
-            print(f"  [k={k:04d}]  θ={x[13,k]:7.2f}/{s_max:.0f}  "
+            print(f"  [k={k:04d}]  θ={x[14,k]:7.2f}/{s_max:.0f}  "
                   f"v_θ={vel_progres[0,k]:5.2f}  "
                   f"solver={t_solver[k]*1e3:5.2f} ms")
 
@@ -345,21 +379,22 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
     mpcc_cost   = mpcc_cost[:N]
 
     # ── Compute metrics ──────────────────────────────────────────────────
-    rmse_c = np.sqrt(np.mean(np.sum(e_contorno**2, axis=0)))
-    rmse_l = np.sqrt(np.mean(np.sum(e_arrastre**2, axis=0)))
-    rmse_t = np.sqrt(np.mean(np.sum(e_total**2, axis=0)))
+    rmse_c = np.sqrt(np.mean(np.sum(e_contorno**2, axis=0))) if N > 0 else 0.0
+    rmse_l = np.sqrt(np.mean(np.sum(e_arrastre**2, axis=0))) if N > 0 else 0.0
+    rmse_t = np.sqrt(np.mean(np.sum(e_total**2, axis=0)))    if N > 0 else 0.0
 
     # Control effort: normalised by hover thrust
-    T_hover = 9.81
+    T_hover = 9.81  # MASS=1.0 * G
     u_norm = u_control.copy()
-    u_norm[0, :] -= T_hover  # penalise deviation from hover
-    mean_effort = np.mean(np.sum(u_norm**2, axis=0))
+    if N > 0:
+        u_norm[0, :] -= T_hover
+    mean_effort = np.mean(np.sum(u_norm**2, axis=0)) if N > 0 else 0.0
 
-    # MPCC cost (same formula as the solver's cost function)
+    # DQ-MPCC cost (same formula as the solver's cost function)
     total_mpcc_cost = np.sum(mpcc_cost) if N > 0 else 0.0
     mean_mpcc_cost  = np.mean(mpcc_cost) if N > 0 else 0.0
 
-    path_completed = x[13, N] / s_max
+    path_completed = x[14, N] / s_max if N > 0 else 0.0
     mean_vtheta    = np.mean(vel_progres) if N > 0 else 0.0
     mean_solver_ms = np.mean(t_solver) * 1e3 if N > 0 else 0.0
 
@@ -389,7 +424,7 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
 
 if __name__ == '__main__':
     print("="*60)
-    print("  MPCC Simulation — standalone test with DEFAULT gains")
+    print("  DQ-MPCC Simulation — standalone test with DEFAULT gains")
     print("="*60)
 
     result = run_simulation(weights=None, verbose=True)
@@ -402,7 +437,7 @@ if __name__ == '__main__':
     print(f"  Path completed: {result['path_completed']*100:.1f} %")
     print(f"  Mean v_θ      : {result['mean_vtheta']:.3f} m/s")
     print(f"  Mean solver   : {result['mean_solver_ms']:.2f} ms")
-    print(f"  Mean MPCC cost: {result['mean_mpcc_cost']:.4f}")
-    print(f"  Total MPCC cost:{result['total_mpcc_cost']:.2f}")
+    print(f"  Mean DQ-MPCC cost: {result['mean_mpcc_cost']:.4f}")
+    print(f"  Total DQ-MPCC cost:{result['total_mpcc_cost']:.2f}")
     print(f"  Steps         : {result['N_steps']}")
     print(f"{'─'*60}")

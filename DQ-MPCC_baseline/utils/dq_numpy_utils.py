@@ -350,3 +350,158 @@ def state15_to_standard13(x15):
     v_inertial = quat_rotate_numpy(quat, v_body)
 
     return np.concatenate([pos, v_inertial, quat, w_body])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  5.  Dual quaternion error & logarithmic map (NumPy)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def dq_conjugate_numpy(dq):
+    """Dual quaternion conjugate  Q* = conj(Qr) + ε conj(Qd)."""
+    return np.array([
+        dq[0], -dq[1], -dq[2], -dq[3],
+        dq[4], -dq[5], -dq[6], -dq[7],
+    ])
+
+
+def dq_product_numpy(dq1, dq2):
+    """Dual quaternion product  dq1 * dq2  (NumPy)."""
+    q1r, q1d = dq1[0:4], dq1[4:8]
+    q2r, q2d = dq2[0:4], dq2[4:8]
+    real = quat_product_numpy(q1r, q2r)
+    dual = quat_product_numpy(q1r, q2d) + quat_product_numpy(q1d, q2r)
+    return np.concatenate([real, dual])
+
+
+def dq_error_numpy(dq_desired, dq_actual):
+    """Dual quaternion error:  Q_err = Q_d* ⊗ Q_actual  (NumPy).
+
+    Parameters
+    ----------
+    dq_desired : ndarray (8,)
+    dq_actual  : ndarray (8,)
+
+    Returns
+    -------
+    dq_err : ndarray (8,)
+    """
+    return dq_product_numpy(dq_conjugate_numpy(dq_desired), dq_actual)
+
+
+def _left_jacobian_SO3_inv_numpy(phi):
+    """Analytical inverse of the left Jacobian of SO(3)  (NumPy).
+
+    J_l(φ)⁻¹ = (θ/2)·cot(θ/2)·I₃ − (θ/2)·[n̂]× + (1 − (θ/2)·cot(θ/2))·n̂·n̂ᵀ
+
+    Parameters
+    ----------
+    phi : ndarray (3,)
+
+    Returns
+    -------
+    J_l_inv : ndarray (3,3)
+    """
+    theta = np.linalg.norm(phi)
+    I3 = np.eye(3)
+
+    if theta < 1e-7:
+        # Small-angle approximation: J_l⁻¹ ≈ I₃ − 0.5·[φ]×
+        phi_x = np.array([
+            [0,      -phi[2],  phi[1]],
+            [phi[2],  0,      -phi[0]],
+            [-phi[1], phi[0],  0     ],
+        ])
+        return I3 - 0.5 * phi_x
+
+    phi_x = np.array([
+        [0,      -phi[2],  phi[1]],
+        [phi[2],  0,      -phi[0]],
+        [-phi[1], phi[0],  0     ],
+    ])
+
+    n_hat = phi / theta
+    nnT = np.outer(n_hat, n_hat)
+    n_hat_x = phi_x / theta
+
+    half_theta = 0.5 * theta
+    alpha = half_theta * np.cos(half_theta) / (np.sin(half_theta) + 1e-14)
+
+    return alpha * I3 - half_theta * n_hat_x + (1 - alpha) * nnT
+
+
+def ln_dual_numpy(dq_error):
+    """Logarithmic map of a unit dual quaternion error → ℝ⁶  (NumPy).
+
+    log(Q_err) = [φ; ρ] ∈ se(3)
+
+    Parameters
+    ----------
+    dq_error : ndarray (8,)
+
+    Returns
+    -------
+    log_vec : ndarray (6,)  – [φ_x, φ_y, φ_z, ρ_x, ρ_y, ρ_z]
+    """
+    q_real = dq_error[0:4].copy()
+    q_dual = dq_error[4:8].copy()
+
+    # Enforce positive scalar part (double cover)
+    if q_real[0] < 0:
+        q_real = -q_real
+        q_dual = -q_dual
+
+    q_real_c = np.array([q_real[0], -q_real[1], -q_real[2], -q_real[3]])
+
+    # ── Rotational part (φ) ──
+    eps = 1e-10
+    norm_v = np.linalg.norm(q_real[1:4]) + eps
+    angle = 2.0 * np.arctan2(norm_v, q_real[0])
+    phi = 0.5 * angle * q_real[1:4] / norm_v
+
+    # ── Translational part (ρ) ──
+    t_err = 2.0 * quat_product_numpy(q_dual, q_real_c)
+    t_vec = t_err[1:4]
+
+    # Apply J_l(φ)⁻¹ correction:  ρ = J_l(φ)⁻¹ · t_vec
+    J_l_inv = _left_jacobian_SO3_inv_numpy(phi)
+    rho = J_l_inv @ t_vec
+
+    return np.concatenate([phi, rho])
+
+
+def rotate_tangent_to_desired_frame_numpy(tangent_world, quat_desired):
+    """Rotate an inertial-frame tangent into the desired body frame (NumPy).
+
+    t_body = R_d^T · t_world
+
+    Parameters
+    ----------
+    tangent_world : ndarray (3,)
+    quat_desired  : ndarray (4,)
+
+    Returns
+    -------
+    tangent_body : ndarray (3,)
+    """
+    q_inv = np.array([quat_desired[0], -quat_desired[1],
+                      -quat_desired[2], -quat_desired[3]])
+    return quat_rotate_numpy(q_inv, tangent_world)
+
+
+def lag_contouring_decomposition_numpy(rho, tangent_body):
+    """Decompose ρ into lag (‖) and contouring (⊥) components (NumPy).
+
+    Parameters
+    ----------
+    rho          : ndarray (3,)
+    tangent_body : ndarray (3,)
+
+    Returns
+    -------
+    rho_lag  : ndarray (3,)
+    rho_cont : ndarray (3,)
+    """
+    proj = np.dot(tangent_body, rho)
+    rho_lag  = proj * tangent_body
+    rho_cont = rho - rho_lag
+    return rho_lag, rho_cont
