@@ -42,9 +42,9 @@ T_MAX       = 10 * G        # max thrust
 T_MIN       = 0.0           # min thrust  (no negative thrust)
 
 # Torques  [N·m]
-TAUX_MAX    = 0.5            # roll  torque limit
-TAUY_MAX    = 0.5            # pitch torque limit
-TAUZ_MAX    = 0.5            # yaw   torque limit
+TAUX_MAX    = 0.2            # roll  torque limit
+TAUY_MAX    = 0.2            # pitch torque limit
+TAUZ_MAX    = 0.2            # yaw   torque limit
 
 # Progress velocity  [m/s]
 VTHETA_MIN  = 0.0
@@ -81,7 +81,9 @@ U_TAU_RANGE  = (10.0, 800.0, True)    # torque weights (τx, τy, τz)
 # Angular velocity  Q_omega  [3]
 Q_OMEGA_RANGE = (0.01, 10.0, True)
 # Progress speed  Q_s
-Q_S_RANGE    = (0.05, 10.0,  True)
+# NOTE: low=0.5 (not 0.05) — values below 0.5 cause very slow progress
+#       and significantly degrade tracking performance.
+Q_S_RANGE    = (0.5,  10.0,  True)
 
 # ── Rotation-error weight (log-map of rotation) ─────────────────────────────
 # Same concept in both baselines:
