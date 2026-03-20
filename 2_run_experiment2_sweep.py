@@ -122,7 +122,9 @@ def _run_mpcc_baseline(p0, q0, vtheta_max, solver, f_sys,
                        rk4_fn, N_sim, t_s, N_prediction):
     """Run one MPCC baseline simulation.
 
-    Returns (rmse_pos, rmse_ori, theta_final, success).
+    Returns (rmse_pos, rmse_ori, theta_final, t_lap, mean_vtheta, success).
+      t_lap      : wall-clock arc-length time  [s]  = k_final * t_s
+      mean_vtheta: mean virtual speed  [m/s]  = theta_final / t_lap
     success = True  iff  θ_final ≥ COMPLETION_RATIO * s_max  AND  no divergence.
     """
     nx, nu = 14, 5
@@ -143,9 +145,11 @@ def _run_mpcc_baseline(p0, q0, vtheta_max, solver, f_sys,
     pos_errs = []
     ori_errs = []
     diverged = False
+    k_final  = 0
 
     for k in range(N_sim):
         if x[13, k] >= s_max - 0.01:
+            k_final = k
             break
 
         solver.set(0, "lbx", x[:, k])
@@ -174,15 +178,19 @@ def _run_mpcc_baseline(p0, q0, vtheta_max, solver, f_sys,
             diverged = True
             break
 
-    theta_final = x[13, k] if len(pos_errs) > 0 else 0.0
+        k_final = k
+
+    theta_final = x[13, k_final] if len(pos_errs) > 0 else 0.0
     completed = (theta_final >= COMPLETION_RATIO * s_max) and not diverged
 
     if len(pos_errs) < 10 or not completed:
-        return np.nan, np.nan, theta_final, False
+        return np.nan, np.nan, theta_final, np.nan, np.nan, False
 
-    rmse_pos = math.sqrt(np.mean(np.array(pos_errs)**2))
-    rmse_ori = math.sqrt(np.mean(np.array(ori_errs)**2))
-    return rmse_pos, rmse_ori, theta_final, True
+    rmse_pos   = math.sqrt(np.mean(np.array(pos_errs)**2))
+    rmse_ori   = math.sqrt(np.mean(np.array(ori_errs)**2))
+    t_lap      = k_final * t_s
+    mean_vtheta = theta_final / t_lap if t_lap > 0 else 0.0
+    return rmse_pos, rmse_ori, theta_final, t_lap, mean_vtheta, True
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -197,7 +205,9 @@ def _run_dq_mpcc(p0, q0, vtheta_max, solver, f_sys,
                  N_sim, t_s, N_prediction):
     """Run one DQ-MPCC simulation.
 
-    Returns (rmse_pos, rmse_ori, theta_final, success).
+    Returns (rmse_pos, rmse_ori, theta_final, t_lap, mean_vtheta, success).
+      t_lap      : wall-clock arc-length time  [s]  = k_final * t_s
+      mean_vtheta: mean virtual speed  [m/s]  = theta_final / t_lap
     success = True  iff  θ_final ≥ COMPLETION_RATIO * s_max  AND  no divergence.
     """
     nx, nu = 15, 5
@@ -217,9 +227,11 @@ def _run_dq_mpcc(p0, q0, vtheta_max, solver, f_sys,
     pos_errs = []
     ori_errs = []
     diverged = False
+    k_final  = 0
 
     for k in range(N_sim):
         if x[14, k] >= s_max - 0.01:
+            k_final = k
             break
 
         solver.set(0, "lbx", x[:, k])
@@ -253,15 +265,19 @@ def _run_dq_mpcc(p0, q0, vtheta_max, solver, f_sys,
             diverged = True
             break
 
-    theta_final = x[14, k] if len(pos_errs) > 0 else 0.0
+        k_final = k
+
+    theta_final = x[14, k_final] if len(pos_errs) > 0 else 0.0
     completed = (theta_final >= COMPLETION_RATIO * s_max) and not diverged
 
     if len(pos_errs) < 10 or not completed:
-        return np.nan, np.nan, theta_final, False
+        return np.nan, np.nan, theta_final, np.nan, np.nan, False
 
-    rmse_pos = math.sqrt(np.mean(np.array(pos_errs)**2))
-    rmse_ori = math.sqrt(np.mean(np.array(ori_errs)**2))
-    return rmse_pos, rmse_ori, theta_final, True
+    rmse_pos    = math.sqrt(np.mean(np.array(pos_errs)**2))
+    rmse_ori    = math.sqrt(np.mean(np.array(ori_errs)**2))
+    t_lap       = k_final * t_s
+    mean_vtheta = theta_final / t_lap if t_lap > 0 else 0.0
+    return rmse_pos, rmse_ori, theta_final, t_lap, mean_vtheta, True
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -454,7 +470,8 @@ def main():
             solver.constraints_set(stage, "ubu", ubu)
 
     # ── Results storage ──────────────────────────────────────────────────
-    results = {ctrl: {v: {'rmse_pos': [], 'rmse_ori': []}
+    results = {ctrl: {v: {'rmse_pos': [], 'rmse_ori': [],
+                          't_lap': [], 'mean_vtheta': []}
                       for v in VELOCITIES}
                for ctrl in ['dq', 'base']}
     failures = {ctrl: {v: 0 for v in VELOCITIES}
@@ -481,7 +498,7 @@ def main():
             # ── Baseline MPCC ────────────────────────────────────────────
             run_count += 1
             try:
-                rp, ro, theta_f, ok = _run_mpcc_baseline(
+                rp, ro, theta_f, tlap, mvtheta, ok = _run_mpcc_baseline(
                     p0_i, q0_i, vtheta_max, mpcc_solver, mpcc_f,
                     position_by_arc, tangent_by_arc, s_max,
                     mpcc_euler2quat, mpcc_errors_fn, mpcc_rk4,
@@ -489,6 +506,8 @@ def main():
                 if ok:
                     results['base'][vtheta_max]['rmse_pos'].append(rp)
                     results['base'][vtheta_max]['rmse_ori'].append(ro)
+                    results['base'][vtheta_max]['t_lap'].append(tlap)
+                    results['base'][vtheta_max]['mean_vtheta'].append(mvtheta)
                 else:
                     failures['base'][vtheta_max] += 1
                     pct_done = theta_f / s_max * 100 if s_max > 0 else 0
@@ -501,7 +520,7 @@ def main():
             # ── DQ-MPCC ─────────────────────────────────────────────────
             run_count += 1
             try:
-                rp, ro, theta_f, ok = _run_dq_mpcc(
+                rp, ro, theta_f, tlap, mvtheta, ok = _run_dq_mpcc(
                     p0_i, q0_i, vtheta_max, dq_solver, dq_f,
                     position_by_arc, tangent_by_arc, s_max,
                     dq_euler2quat,
@@ -512,6 +531,8 @@ def main():
                 if ok:
                     results['dq'][vtheta_max]['rmse_pos'].append(rp)
                     results['dq'][vtheta_max]['rmse_ori'].append(ro)
+                    results['dq'][vtheta_max]['t_lap'].append(tlap)
+                    results['dq'][vtheta_max]['mean_vtheta'].append(mvtheta)
                 else:
                     failures['dq'][vtheta_max] += 1
                     pct_done = theta_f / s_max * 100 if s_max > 0 else 0
@@ -537,8 +558,11 @@ def main():
             if n_ok > 0:
                 rp = np.array(results[ctrl][vtheta_max]['rmse_pos'])
                 ro = np.array(results[ctrl][vtheta_max]['rmse_ori'])
+                tl = np.array(results[ctrl][vtheta_max]['t_lap'])
+                mv = np.array(results[ctrl][vtheta_max]['mean_vtheta'])
                 print(f"  [{tag:10s}] v={vtheta_max}  OK={n_ok}  FAIL={n_fail}  "
-                      f"RMSE_pos={np.median(rp):.4f}  RMSE_ori={np.median(ro):.4f}")
+                      f"RMSE_pos={np.median(rp):.4f}  RMSE_ori={np.median(ro):.4f}  "
+                      f"t_lap={np.median(tl):.2f}s  vθ_mean={np.median(mv):.2f}m/s")
             else:
                 print(f"  [{tag:10s}] v={vtheta_max}  ALL FAILED ({n_fail})")
         print(f"  (completion criterion: theta >= {COMPLETION_RATIO*100:.0f}% of s_max={s_max})")
@@ -555,11 +579,15 @@ def main():
     for ctrl in ['dq', 'base']:
         for v in VELOCITIES:
             vstr = f"{v:.2f}".replace('.', 'p')
-            rp = results[ctrl][v]['rmse_pos']
-            ro = results[ctrl][v]['rmse_ori']
-            mat_dict[f'{ctrl}_v{vstr}_rmse_pos'] = np.array(rp) if rp else np.array([])
-            mat_dict[f'{ctrl}_v{vstr}_rmse_ori'] = np.array(ro) if ro else np.array([])
-            mat_dict[f'{ctrl}_v{vstr}_failures'] = failures[ctrl][v]
+            rp  = results[ctrl][v]['rmse_pos']
+            ro  = results[ctrl][v]['rmse_ori']
+            tl  = results[ctrl][v]['t_lap']
+            mv  = results[ctrl][v]['mean_vtheta']
+            mat_dict[f'{ctrl}_v{vstr}_rmse_pos']    = np.array(rp) if rp else np.array([])
+            mat_dict[f'{ctrl}_v{vstr}_rmse_ori']    = np.array(ro) if ro else np.array([])
+            mat_dict[f'{ctrl}_v{vstr}_t_lap']       = np.array(tl) if tl else np.array([])
+            mat_dict[f'{ctrl}_v{vstr}_mean_vtheta'] = np.array(mv) if mv else np.array([])
+            mat_dict[f'{ctrl}_v{vstr}_failures']    = failures[ctrl][v]
 
     out_path = os.path.join(_OUT_DIR, 'velocity_sweep_data.mat')
     savemat(out_path, mat_dict, do_compression=True)
