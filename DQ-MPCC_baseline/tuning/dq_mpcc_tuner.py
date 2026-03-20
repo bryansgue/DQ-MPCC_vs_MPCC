@@ -141,7 +141,7 @@ def objective(trial) -> float:
         result = run_simulation(weights=weights, verbose=False)
         wall = time.time() - t0
     except Exception as e:
-        print(f"  [FAIL] Trial {trial.number}: {e}")
+        print(f"  [FAIL] Trial {trial.number}: {e}", flush=True)
         return 1e6   # penalise crashes
 
     mpcc_cost = result['mean_mpcc_cost']
@@ -149,6 +149,11 @@ def objective(trial) -> float:
     rmse_c    = result['rmse_contorno']
     rmse_l    = result['rmse_lag']
     effort    = result['mean_effort']
+
+    # ── Guard against NaN / Inf (divergent trial) ────────────────────────
+    if not np.isfinite(mpcc_cost) or not np.isfinite(rmse_c):
+        print(f"  [Trial {trial.number:3d}]  DIVERGED (NaN/Inf) — penalising", flush=True)
+        return 1e6
 
     # ── Objective = DQ-MPCC cost + completion penalty ────────────────────
     J = mpcc_cost
@@ -159,7 +164,7 @@ def objective(trial) -> float:
           f"J_mpcc={mpcc_cost:.4f}  "
           f"RMSE_c={rmse_c:.4f}  RMSE_l={rmse_l:.4f}  "
           f"effort={effort:.1f}  path={compl*100:.1f}%  "
-          f"({wall:.1f}s)")
+          f"({wall:.1f}s)", flush=True)
 
     # Store sub-metrics for later analysis
     trial.set_user_attr('mean_mpcc_cost', mpcc_cost)

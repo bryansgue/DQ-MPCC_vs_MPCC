@@ -43,30 +43,21 @@ from utils.dq_casadi_utils import (
 #  Default cost weights
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Orientation error φ ∈ so(3)  [φ_x, φ_y, φ_z]
-DEFAULT_Q_PHI   = [5.0, 5.0, 5.0]
 
-# Contouring error ρ_cont  (⊥ to path)  [ρ_cx, ρ_cy, ρ_cz]
-DEFAULT_Q_EC    = [10.0, 10.0, 10.0]  
-
-# Lag error ρ_lag  (‖ to path)  [ρ_lx, ρ_ly, ρ_lz]
-DEFAULT_Q_EL    = [5.0, 5.0, 5.0]    
-
-# Control effort [T, τx, τy, τz]
-DEFAULT_U_MAT   = [0.1, 250.0, 250.0, 250.0] 
-
-# Angular velocity cost [ωx, ωy, ωz]
+DEFAULT_Q_EC    = [10.0, 10.0, 10.0]
+DEFAULT_Q_EL    = [5.0, 5.0, 5.0]
+DEFAULT_Q_PHI    = [5.0, 5.0, 5.0]
+DEFAULT_U_MAT   = [0.1, 250.0, 250.0, 250.0]
 DEFAULT_Q_OMEGA = [0.5, 0.5, 0.5]
-
-# Progress speed incentive:  Q_s * (v_max − v_θ)²
 DEFAULT_Q_S     = 0.3
 
+
 G = 9.81
-DEFAULT_T_MAX      = 5 * G
+DEFAULT_T_MAX      = 10 * G
 DEFAULT_T_MIN      = 0.0
-DEFAULT_TAUX_MAX   = 0.1
-DEFAULT_TAUY_MAX   = 0.1
-DEFAULT_TAUZ_MAX   = 0.1
+DEFAULT_TAUX_MAX   = 0.5
+DEFAULT_TAUY_MAX   = 0.5
+DEFAULT_TAUZ_MAX   = 0.5
 DEFAULT_VTHETA_MIN = 0.0
 DEFAULT_VTHETA_MAX = 15.0
 

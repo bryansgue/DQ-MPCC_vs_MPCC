@@ -42,7 +42,7 @@ SEED = 42
 S_MAX = 100.0
 
 # Safety time budget [s]
-T_FINAL = 60
+T_FINAL = 30
 
 # Control frequency [Hz]
 FREC = 100

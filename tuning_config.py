@@ -74,21 +74,22 @@ W_INCOMPLETE          = 1000.0
 
 # ── Common search ranges ─────────────────────────────────────────────────────
 # Contouring error Q_ec  [3]
-Q_EC_RANGE   = (1.0,  50.0,  True)    # (low, high, log)
+Q_EC_RANGE   = (1.0,  30.0,  True)    # (low, high, log)
 # Lag error Q_el  [3]
-Q_EL_RANGE   = (0.1,  50.0,  True)
+Q_EL_RANGE   = (0.5,  30.0,  True)
 # Control effort  U_mat
-U_T_RANGE    = (0.01, 10.0,  True)    # thrust weight
-U_TAU_RANGE  = (10.0, 800.0, True)    # torque weights (τx, τy, τz)
+U_T_RANGE    = (0.005, 1.0,  True)    # thrust weight
+U_TAU_RANGE  = (20,  500.0, True)    # torque weights (τx, τy, τz)
 # Angular velocity  Q_omega  [3]
-Q_OMEGA_RANGE = (0.01, 10.0, True)
+Q_OMEGA_RANGE = (0.01, 2.0, True)
 # Progress speed  Q_s
-# NOTE: low=0.5 (not 0.05) — values below 0.5 cause very slow progress
-#       and significantly degrade tracking performance.
-Q_S_RANGE    = (0.5,  10.0,  True)
+# NOTE: low=0.1 — DQ-MPCC works well with Q_s~0.3; values above ~3 cause stalls
+Q_S_RANGE    = (0.1,  3.0,  True)
 
 # ── Rotation-error weight (log-map of rotation) ─────────────────────────────
 # Same concept in both baselines:
 #   MPCC    → Q_q   (quaternion log error)
 #   DQ-MPCC → Q_phi (dual-quaternion rotation log error)
-Q_ROT_RANGE  = (0.1,  50.0,  True)
+Q_ROT_RANGE  = (0.1,  20.0,  True)
+
+

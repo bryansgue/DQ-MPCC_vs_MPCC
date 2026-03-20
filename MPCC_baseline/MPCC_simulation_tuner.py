@@ -13,8 +13,29 @@ Original file: MPCC_baseline.py  (UNTOUCHED)
 
 import os
 import sys
+import ctypes
 import numpy as np
 import time as _time
+
+# ── C-level stdout/stderr suppression (silences acados QP warnings) ──────────
+def _suppress_c_output():
+    """Redirect C-level stdout/stderr to /dev/null."""
+    sys.stdout.flush(); sys.stderr.flush()
+    _devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    _old_stdout_fd = os.dup(1)
+    _old_stderr_fd = os.dup(2)
+    os.dup2(_devnull_fd, 1)
+    os.dup2(_devnull_fd, 2)
+    os.close(_devnull_fd)
+    return _old_stdout_fd, _old_stderr_fd
+
+def _restore_c_output(old_stdout_fd, old_stderr_fd):
+    """Restore C-level stdout/stderr."""
+    sys.stdout.flush(); sys.stderr.flush()
+    os.dup2(old_stdout_fd, 1)
+    os.dup2(old_stderr_fd, 2)
+    os.close(old_stdout_fd)
+    os.close(old_stderr_fd)
 
 # ── Shared tuning configuration ──────────────────────────────────────────────
 _WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -252,15 +273,24 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
     x[:, 0] = x0
     theta_hist[0, 0] = 0.0
 
-    # ── Warm-start ───────────────────────────────────────────────────────
+    # ── FULL solver reset (prevents state leakage between trials) ──────
     for stage in range(N_prediction + 1):
         solver.set(stage, "x", x0)
+        solver.set(stage, "p", p_vec)
     for stage in range(N_prediction):
         solver.set(stage, "u", np.zeros(nu))
+    # Reset dual variables (multipliers) to prevent contamination
+    try:
+        for stage in range(N_prediction + 1):
+            solver.set(stage, "lam", np.zeros(nx))
+    except Exception:
+        pass
 
     # ── Control loop (no sleep — fast as possible) ───────────────────────
     actual_steps = N_sim
     success = True
+    consecutive_fails = 0
+    MAX_CONSECUTIVE_FAILS = 50
 
     for k in range(N_sim):
         # Stop when path is complete
@@ -268,26 +298,45 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
             actual_steps = k
             break
 
+        # ── NaN / Inf guard ──────────────────────────────────────────
+        if not np.all(np.isfinite(x[:, k])):
+            if verbose:
+                print(f"[k={k}] NaN/Inf in state — aborting trial")
+            actual_steps = k
+            success = False
+            break
+
         # Set initial state
         solver.set(0, "lbx", x[:, k])
         solver.set(0, "ubx", x[:, k])
 
-        # Solve
+        # Solve (suppress C-level QP warnings)
         tic = _time.time()
-        status = solver.solve()
+        _old_out, _old_err = _suppress_c_output()
+        try:
+            status = solver.solve()
+        finally:
+            _restore_c_output(_old_out, _old_err)
         t_solver[k] = _time.time() - tic
 
         if status != 0 and status != 2:
             # status 2 = max iter reached but still usable
+            consecutive_fails += 1
             if verbose:
                 print(f"[k={k}] Solver failed with status {status}")
-            # Continue with last good control rather than aborting
             if k > 0:
                 u_control[:, k] = u_control[:, k-1]
             else:
                 u_control[:, k] = np.zeros(nu)
+            if consecutive_fails >= MAX_CONSECUTIVE_FAILS:
+                if verbose:
+                    print(f"[k={k}] {MAX_CONSECUTIVE_FAILS} consecutive failures — aborting")
+                actual_steps = k + 1
+                success = False
+                break
         else:
             u_control[:, k] = solver.get(0, "u")
+            consecutive_fails = 0
 
         vel_progres[0, k]  = u_control[4, k]
         theta_hist[0, k]   = x[13, k]
