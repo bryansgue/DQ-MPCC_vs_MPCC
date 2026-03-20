@@ -42,9 +42,11 @@ T_MAX       = 10 * G        # max thrust
 T_MIN       = 0.0           # min thrust  (no negative thrust)
 
 # Torques  [N·m]
-TAUX_MAX    = 0.2            # roll  torque limit
-TAUY_MAX    = 0.2            # pitch torque limit
-TAUZ_MAX    = 0.2            # yaw   torque limit
+# NOTE: best MPCC weights (J=32.71) were tuned with τ_max=0.5.
+#       Production controller MUST use the same value.
+TAUX_MAX    = 0.5            # roll  torque limit
+TAUY_MAX    = 0.5            # pitch torque limit
+TAUZ_MAX    = 0.5            # yaw   torque limit
 
 # Progress velocity  [m/s]
 VTHETA_MIN  = 0.0

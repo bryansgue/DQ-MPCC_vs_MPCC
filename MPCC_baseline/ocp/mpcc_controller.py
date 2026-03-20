@@ -24,6 +24,7 @@ No runtime parameters — the reference comes from the symbolic θ interpolation
 """
 
 import os
+import sys
 import shutil
 import numpy as np
 from casadi import MX, dot, vertcat
@@ -35,19 +36,25 @@ from utils.casadi_utils import (
     quat_log_casadi   as log_cuaternion_casadi,
 )
 
+# ── Shared control limits from tuning_config.py ──────────────────────────────
+# IMPORTANT: must match the limits used during tuning (mpcc_controller_tuner.py)
+#            so that the optimised weights are valid for this OCP.
+_WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
+if _WORKSPACE_ROOT not in sys.path:
+    sys.path.insert(0, _WORKSPACE_ROOT)
+from tuning_config import (
+    T_MAX as _CFG_T_MAX, T_MIN as _CFG_T_MIN,
+    TAUX_MAX as _CFG_TAUX_MAX, TAUY_MAX as _CFG_TAUY_MAX,
+    TAUZ_MAX as _CFG_TAUZ_MAX,
+    VTHETA_MIN as _CFG_VTHETA_MIN, VTHETA_MAX as _CFG_VTHETA_MAX,
+)
+
 
 # ──────────────────────────────────────────────────────────────────────────────
-#  Default cost weights
+#  Default cost weights  (best result from bilevel tuning — J=32.71)
+#  Tuned with τ_max=0.5 N·m  (see tuning_config.py → TAUX/Y/Z_MAX)
 # ──────────────────────────────────────────────────────────────────────────────
-
-
-#DEFAULT_Q_EC    = [10.0, 10.0, 10.0]            # Contouring error      [ex, ey, ez]
-#DEFAULT_Q_EL    = [5.0, 5.0, 5.0]               # Lag error             [ex, ey, ez]
-#DEFAULT_Q_Q     = [5.0, 5.0, 5.0]               # Quaternion log error  [roll, pitch, yaw]
-#DEFAULT_U_MAT   = [0.1, 250.0, 250.0, 250.0]    # Control effort        [T, τx, τy, τz]
-#DEFAULT_Q_OMEGA = [0.5, 0.5, 0.5]               # Angular velocity      [ωx, ωy, ωz]
-#DEFAULT_Q_S     = 0.3                            # Progress: Q_s*(v_max-v_θ)²
-
 
 DEFAULT_Q_EC    = [13.57738255445416, 1.8890124348260142, 1.6715023759813776]
 DEFAULT_Q_EL    = [12.6214175909978, 28.348657413534657, 1.1913008526216196]
@@ -56,16 +63,14 @@ DEFAULT_U_MAT   = [0.010021926260341494, 87.89317517538485, 11.75052384151524, 1
 DEFAULT_Q_OMEGA = [0.017449843366922332, 0.03216712507119171, 0.04936032393158435]
 DEFAULT_Q_S     = 0.5342721333724649
 
-
-
-G = 9.81
-DEFAULT_T_MAX      = 10 * G
-DEFAULT_T_MIN      = 0.0
-DEFAULT_TAUX_MAX   = 0.2                         # ← was 0.03 — too restrictive!
-DEFAULT_TAUY_MAX   = 0.2                         # ← was 0.03
-DEFAULT_TAUZ_MAX   = 0.2                         # ← was 0.03
-DEFAULT_VTHETA_MIN = 0.0
-DEFAULT_VTHETA_MAX = 15.0
+# ── Control limits — read from tuning_config so tuner & production are identical
+DEFAULT_T_MAX      = _CFG_T_MAX
+DEFAULT_T_MIN      = _CFG_T_MIN
+DEFAULT_TAUX_MAX   = _CFG_TAUX_MAX
+DEFAULT_TAUY_MAX   = _CFG_TAUY_MAX
+DEFAULT_TAUZ_MAX   = _CFG_TAUZ_MAX
+DEFAULT_VTHETA_MIN = _CFG_VTHETA_MIN
+DEFAULT_VTHETA_MAX = _CFG_VTHETA_MAX
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  OCP builder
