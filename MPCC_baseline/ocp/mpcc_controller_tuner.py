@@ -6,13 +6,14 @@ are declared as `model.p` (acados runtime parameters).  This allows
 changing the gains at runtime via `solver.set(stage, "p", gains_vec)`
 WITHOUT recompiling the C code — enabling fast bilevel optimisation.
 
-Parameter vector  p ∈ ℝ¹⁷:
+Parameter vector  p ∈ ℝ¹⁸:
     p[ 0: 3]  →  Q_ec   = [Q_ecx, Q_ecy, Q_ecz]     contouring error
     p[ 3: 6]  →  Q_el   = [Q_elx, Q_ely, Q_elz]     lag error
     p[ 6: 9]  →  Q_q    = [Q_qx,  Q_qy,  Q_qz]      quaternion log error
     p[ 9:13]  →  U_mat  = [U_T,   U_tx,  U_ty, U_tz] control effort
     p[13:16]  →  Q_omega= [Q_wx,  Q_wy,  Q_wz]       angular velocity
     p[16]     →  Q_s                                   progress speed
+    p[17]     →  vtheta_max                            max progress velocity
 
 Original file: ocp/mpcc_controller.py  (UNTOUCHED)
 """
@@ -45,7 +46,7 @@ from tuning_config import (
 # ──────────────────────────────────────────────────────────────────────────────
 #  Default cost weights  (same as mpcc_controller.py — used as initial values)
 # ──────────────────────────────────────────────────────────────────────────────
-N_PARAMS = 17   # total number of runtime parameters
+N_PARAMS = 18   # total number of runtime parameters (17 weights + 1 v_theta_max)
 
 DEFAULT_Q_EC    = [13.57738255445416, 1.8890124348260142, 1.6715023759813776]
 DEFAULT_Q_EL    = [12.6214175909978, 28.348657413534657, 1.1913008526216196]
@@ -85,6 +86,7 @@ def weights_to_param_vector(weights: dict | None = None) -> np.ndarray:
     p[9:13]  = w.get('U_mat',   DEFAULT_U_MAT)
     p[13:16] = w.get('Q_omega', DEFAULT_Q_OMEGA)
     p[16]    = w.get('Q_s',     DEFAULT_Q_S)
+    p[17]    = w.get('vtheta_max', DEFAULT_VTHETA_MAX)
     return p
 
 
@@ -115,6 +117,7 @@ def create_mpcc_ocp_description_tunable(
     U_mat_diag   = p_sym[9:13]      # [4]
     Q_omega_diag = p_sym[13:16]     # [3]
     Q_s_sym      = p_sym[16]        # scalar
+    p_vtheta_max = p_sym[17]        # runtime v_theta_max for multi-velocity tuning
 
     # Build diagonal matrices symbolically
     Q_ec    = casadi_diag(Q_ec_diag)       # 3×3
@@ -156,7 +159,7 @@ def create_mpcc_ocp_description_tunable(
     error_contorno    = ec.T @ Q_ec @ ec
     error_lag         = e_lag.T @ Q_el @ e_lag
     omega_cost        = omega.T @ Q_omega @ omega
-    arc_speed_penalty = Q_s_sym * (DEFAULT_VTHETA_MAX - v_theta)**2
+    arc_speed_penalty = Q_s_sym * (p_vtheta_max - v_theta)**2
 
     # ── Stage cost ───────────────────────────────────────────────────────
     ocp.model.cost_expr_ext_cost = (

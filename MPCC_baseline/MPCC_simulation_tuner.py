@@ -181,7 +181,8 @@ def _get_infra():
 #  Simulation runner
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
+def run_simulation(weights: dict | None = None, verbose: bool = False,
+                   vtheta_max: float | None = None) -> dict:
     """Run a full MPCC simulation with the given weights.
 
     Parameters
@@ -196,6 +197,10 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
             'Q_s'     – float  progress speed
     verbose : bool
         If True, print per-step info.
+    vtheta_max : float or None
+        Override for the maximum progress velocity v_θ used in both the
+        cost function  Q_s·(v_max − v_θ)²  and the control constraint
+        u[4] ≤ v_max.  If None, DEFAULT_VTHETA_MAX is used.
 
     Returns
     -------
@@ -235,10 +240,23 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
     nx = model.x.size()[0]   # 14
     nu = model.u.size()[0]   # 5
 
+    # ── Resolve effective v_theta_max ────────────────────────────────────
+    v_theta_max = float(vtheta_max) if vtheta_max is not None else DEFAULT_VTHETA_MAX
+
     # ── Set runtime parameters on ALL stages ─────────────────────────────
     p_vec = weights_to_param_vector(weights)
+    p_vec[17] = v_theta_max        # inject v_theta_max into parameter vector
     for stage in range(N_prediction + 1):
         solver.set(stage, "p", p_vec)
+
+    # ── Update v_theta upper bound constraint to match ───────────────────
+    from ocp.mpcc_controller_tuner import (
+        DEFAULT_T_MAX, DEFAULT_TAUX_MAX, DEFAULT_TAUY_MAX, DEFAULT_TAUZ_MAX,
+    )
+    ubu = np.array([DEFAULT_T_MAX, DEFAULT_TAUX_MAX, DEFAULT_TAUY_MAX,
+                     DEFAULT_TAUZ_MAX, v_theta_max])
+    for stage in range(N_prediction):
+        solver.constraints_set(stage, "ubu", ubu)
 
     # ── Extract weight matrices for numerical MPCC cost computation ──────
     w = weights or {}
@@ -248,7 +266,6 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
     U_mat_vec   = np.array(w.get('U_mat',   p_vec[9:13]))
     Q_omega_vec = np.array(w.get('Q_omega', p_vec[13:16]))
     Q_s_val     = float(w.get('Q_s',        p_vec[16]))
-    v_theta_max = DEFAULT_VTHETA_MAX
 
     # ── Storage ──────────────────────────────────────────────────────────
     x            = np.zeros((nx, N_sim + 1))
