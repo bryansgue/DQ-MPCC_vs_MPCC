@@ -25,7 +25,9 @@ from scipy.io import savemat
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from experiment_config import (
     P0, Q0, V0, W0, THETA0,
-    VALUE, T_FINAL, FREC, T_PREDICTION, N_WAYPOINTS, S_MAX_MANUAL,
+    T_FINAL, FREC, T_PREDICTION, N_WAYPOINTS, S_MAX_MANUAL,
+    VTHETA_MAX,
+    trayectoria,
 )
 
 # ── Project modules ──────────────────────────────────────────────────────────
@@ -53,24 +55,9 @@ from utils.graficas import (
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Constants — imported from experiment_config.py
-#  (VALUE, S_MAX_MANUAL, T_FINAL, FREC, T_PREDICTION, N_WAYPOINTS,
-#   P0, Q0, V0, W0, THETA0 are all set in experiment_config.py)
+#  (S_MAX_MANUAL, T_FINAL, FREC, T_PREDICTION, N_WAYPOINTS,
+#   P0, Q0, V0, W0, THETA0, trayectoria are all set in experiment_config.py)
 # ═══════════════════════════════════════════════════════════════════════════════
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Trajectory generators
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def trayectoria(t):
-    v = VALUE
-    xd   = lambda t: 7 * np.sin(v * 0.04 * t) + 3
-    yd   = lambda t: 7 * np.sin(v * 0.08 * t)
-    zd   = lambda t: 1.5 * np.sin(v * 0.08 * t) + 6
-    xd_p = lambda t: 7 * v * 0.04 * np.cos(v * 0.04 * t)
-    yd_p = lambda t: 7 * v * 0.08 * np.cos(v * 0.08 * t)
-    zd_p = lambda t: 1.5 * v * 0.08 * np.cos(v * 0.08 * t)
-    return xd, yd, zd, xd_p, yd_p, zd_p
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -162,22 +149,26 @@ def main():
     # ── Control storage (5-dim: T, τx, τy, τz, v_θ) ─────────────────────
     u_control = np.zeros((5, N_sim), dtype=np.double)
 
-    # ── Create CasADi trajectory interpolation  (θ → reference) ──────────
-    #    Delegates to utils.numpy_utils.build_waypoints and
-    #    utils.casadi_utils.create_*_interpolator_casadi.
+    # ── Build MPCC solver ────────────────────────────────────────────────
+    # Pass s_max * 1.2 so the solver's θ upper-bound is extended beyond the
+    # finish line — prevents the predictive horizon from braking early.
+    # Clamp to s_max_full so the interpolation never goes out of range.
+    S_MAX_SOLVER = min(s_max * 1.2, s_max_full)
+
+    # Build waypoints up to S_MAX_SOLVER so the CasADi interpolation
+    # covers the entire range the solver can explore.
     s_wp, pos_wp, tang_wp, quat_wp = build_waypoints(
-        s_max, N_WAYPOINTS, position_by_arc_length, tangent_by_arc_length,
+        S_MAX_SOLVER, N_WAYPOINTS, position_by_arc_length, tangent_by_arc_length,
         euler_to_quat_fn=euler_to_quaternion,
     )
 
     gamma_pos  = create_casadi_position_interpolator(s_wp, pos_wp)
     gamma_vel  = create_casadi_tangent_interpolator(s_wp, tang_wp)
     gamma_quat = create_casadi_quat_interpolator(s_wp, quat_wp)
-    print(f"[INTERP] Created CasADi interpolation with {N_WAYPOINTS} waypoints")
-
-    # ── Build MPCC solver ────────────────────────────────────────────────
+    print(f"[INTERP] Created CasADi interpolation with {N_WAYPOINTS} waypoints "
+          f"(s_max_solver={S_MAX_SOLVER:.2f})")
     acados_ocp_solver, ocp, model, f = build_mpcc_solver(
-        x[:, 0], N_prediction, t_prediction, s_max=s_max,
+        x[:, 0], N_prediction, t_prediction, s_max=S_MAX_SOLVER,
         gamma_pos=gamma_pos, gamma_vel=gamma_vel, gamma_quat=gamma_quat,
         use_cython=True,
     )
@@ -207,7 +198,7 @@ def main():
         tic = time.time()
 
         # ── Stop when path is complete ────────────────────────────────────
-        if x[13, k] >= s_max - 0.01:
+        if x[13, k] >= s_max:               # cruzó la línea de meta
             t_lap = k * t_s        # wall time when lap completes [s]
             print(f"[k={k:04d}]  Path complete at θ={x[13,k]:.3f} m  →  t_lap = {t_lap:.3f} s")
             N_sim = k   # trim storage arrays to actual run length
@@ -216,6 +207,20 @@ def main():
         # ── Set initial state (14-dim) ───────────────────────────────────
         acados_ocp_solver.set(0, "lbx", x[:, k])
         acados_ocp_solver.set(0, "ubx", x[:, k])
+
+        # ── Per-stage p_vtheta_max: brake after s_max ────────────────────
+        #    Estimate predicted θ at each horizon stage.  For stages where
+        #    the predicted θ exceeds s_max, set v_ref = 0 so the cost
+        #    Q_s*(0 − v_θ)² drives the solver to brake.
+        dt_stage = t_prediction / N_prediction
+        theta_k_cur = x[13, k]
+        vtheta_cur  = u_control[4, max(k - 1, 0)]  # best guess of current v_θ
+        for stage in range(N_prediction + 1):
+            theta_pred = theta_k_cur + stage * dt_stage * vtheta_cur
+            if theta_pred >= s_max:
+                acados_ocp_solver.set(stage, "p", np.array([0.0]))
+            else:
+                acados_ocp_solver.set(stage, "p", np.array([VTHETA_MAX]))
 
         # ── Solve ────────────────────────────────────────────────────────
         tic_solver = time.time()
@@ -244,8 +249,9 @@ def main():
         # ── System evolution (augmented RK4, 14 states) ──────────────────
         x[:, k + 1] = rk4_step_mpcc(x[:, k], u_control[:, k], t_s, f)
 
-        # Clamp θ to valid range
-        x[13, k + 1] = np.clip(x[13, k + 1], 0.0, s_max)
+        # Clamp θ to extended solver range — NOT to s_max, so the solver
+        # horizon never hits a hard wall before crossing the finish line.
+        x[13, k + 1] = np.clip(x[13, k + 1], 0.0, S_MAX_SOLVER)
         theta_history[:, k + 1] = x[13, k + 1]
 
         # ── Rate control — run in real time ──────────────────────────────
@@ -396,7 +402,7 @@ def main():
         'states': x,
         'T_control': u_control,
         'time': t_plot,
-        'ref': xref[:, :N_sim + 1],
+        'ref': xref_theta,                   # θ-indexed reference (aligned with actual trajectory)
         'e_total': e_total,
         'e_contorno': e_contorno,
         'e_arrastre': e_arrastre,

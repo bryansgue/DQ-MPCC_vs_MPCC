@@ -24,14 +24,14 @@ from utils.casadi_utils import (
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-#  Physical parameters
+#  Physical parameters — imported from experiment_config.py
 # ──────────────────────────────────────────────────────────────────────────────
-
-MASS = 1.0          # [kg]
-G    = 9.81         # [m/s²]
-JXX  = 0.00305587   # [kg·m²]
-JYY  = 0.00159695
-JZZ  = 0.00159687
+import os as _os, sys as _sys
+_WORKSPACE_ROOT = _os.path.dirname(_os.path.dirname(_os.path.dirname(
+    _os.path.abspath(__file__))))
+if _WORKSPACE_ROOT not in _sys.path:
+    _sys.path.insert(0, _WORKSPACE_ROOT)
+from experiment_config import MASS, G, JXX, JYY, JZZ
 
 
 def f_system_model_mpcc():

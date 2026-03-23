@@ -46,7 +46,8 @@ from MPCC_simulation_tuner import run_simulation
 
 # ── Shared tuning configuration ──────────────────────────────────────────────
 from tuning_config import (
-    W_INCOMPLETE,
+    W_INCOMPLETE, W_TIME, W_VEL, W_ISOTROPY, W_CONTOUR,
+    FREC, VTHETA_MAX,
     DEFAULT_N_TRIALS, DEFAULT_SAMPLER, N_STARTUP_TRIALS, OPTUNA_SEED,
     Q_EC_RANGE, Q_EL_RANGE, Q_ROT_RANGE,
     U_T_RANGE, U_TAU_RANGE,
@@ -149,14 +150,50 @@ def objective(trial) -> float:
     rmse_c    = result['rmse_contorno']
     rmse_l    = result['rmse_lag']
     effort    = result['mean_effort']
+    v_mean    = float(result['mean_vtheta'])
+    N_steps   = result['N_steps']
+    s_max     = result['s_max']
 
-    # ── Objective = MPCC cost + completion penalty ───────────────────────
-    J = mpcc_cost 
+    # ── Guard against NaN / Inf (divergent trial) ────────────────────────
+    if not np.isfinite(mpcc_cost) or not np.isfinite(rmse_c):
+        print(f"  [Trial {trial.number:3d}]  DIVERGED (NaN/Inf) — penalising")
+        return 1e6
+
+    # ── Objective = MPCC cost + completion penalty + speed-awareness ─────
+    J = mpcc_cost
+
+    # Completion penalty (large push to finish the path)
+    if compl < 0.99:
+        J += W_INCOMPLETE * (1.0 - compl)
+
+    # Term A: penalise long lap times  (t_lap / T_ref)
+    t_s   = 1.0 / FREC
+    t_lap = N_steps * t_s
+    T_ref = s_max / VTHETA_MAX          # theoretical minimum at full speed
+    J += W_TIME * (t_lap / T_ref)
+
+    # Term B: penalise low mean progress velocity  ((v_max − v̄_θ) / v_max)
+    vel_ratio = max(0.0, (VTHETA_MAX - v_mean)) / VTHETA_MAX
+    J += W_VEL * vel_ratio
+
+    # Term C: penalise axis-anisotropy (max_rmse_axis / min_rmse_axis − 1)
+    # Prevents the tuner from sacrificing one axis (typically Z) for others.
+    e_cont_3 = result['e_contorno']            # (3, N)
+    e_lag_3  = result['e_lag']                  # (3, N)
+    e_all_3  = np.sqrt(e_cont_3**2 + e_lag_3**2)  # total error per axis
+    rmse_xyz = np.sqrt(np.mean(e_all_3**2, axis=1))  # [rmse_x, rmse_y, rmse_z]
+    aniso    = rmse_xyz.max() / (rmse_xyz.min() + 1e-8) - 1.0
+    J += W_ISOTROPY * aniso
+
+    # Term D: penalise contouring error directly  (force tight path tracking)
+    J += W_CONTOUR * rmse_c
 
     print(f"  [Trial {trial.number:3d}]  J={J:8.3f}  "
           f"J_mpcc={mpcc_cost:.4f}  "
           f"RMSE_c={rmse_c:.4f}  RMSE_l={rmse_l:.4f}  "
           f"effort={effort:.1f}  path={compl*100:.1f}%  "
+          f"v̄θ={v_mean:.2f}  t_lap={t_lap:.1f}s  "
+          f"aniso={aniso:.2f}  "
           f"({wall:.1f}s)")
 
     # Store sub-metrics for later analysis
@@ -166,6 +203,8 @@ def objective(trial) -> float:
     trial.set_user_attr('rmse_lag', rmse_l)
     trial.set_user_attr('mean_effort', effort)
     trial.set_user_attr('path_completed', compl)
+    trial.set_user_attr('mean_vtheta', v_mean)
+    trial.set_user_attr('t_lap', t_lap)
     trial.set_user_attr('wall_time', wall)
 
     return J
@@ -245,8 +284,50 @@ def main():
     for key, val in best_weights.items():
         print(f"    {key:10s} = {val}")
 
-    # ── Save to JSON ─────────────────────────────────────────────────────
+    # ── Save trial history (for convergence plots) ───────────────────────
     out_dir = os.path.dirname(os.path.abspath(__file__))
+
+    history_records = []
+    best_so_far = float('inf')
+    for t in study.trials:
+        if t.state == optuna.trial.TrialState.COMPLETE:
+            J_val = t.value
+            best_so_far = min(best_so_far, J_val)
+            record = {
+                'trial':          t.number,
+                'J':              J_val,
+                'best_J_so_far':  best_so_far,
+                'mpcc_cost':      t.user_attrs.get('mean_mpcc_cost'),
+                'total_mpcc_cost': t.user_attrs.get('total_mpcc_cost'),
+                'rmse_contorno':  t.user_attrs.get('rmse_contorno'),
+                'rmse_lag':       t.user_attrs.get('rmse_lag'),
+                'mean_effort':    t.user_attrs.get('mean_effort'),
+                'path_completed': t.user_attrs.get('path_completed'),
+                'mean_vtheta':    t.user_attrs.get('mean_vtheta'),
+                't_lap':          t.user_attrs.get('t_lap'),
+                'wall_time':      t.user_attrs.get('wall_time'),
+            }
+            history_records.append(record)
+
+    hist_path = os.path.join(out_dir, 'tuning_history.json')
+    with open(hist_path, 'w') as fp:
+        json.dump({
+            'controller': 'MPCC',
+            'n_trials': len(history_records),
+            'sampler': args.sampler,
+            'objective_info': {
+                'type': 'mean_mpcc_cost + completion_penalty + time_penalty + vel_penalty',
+                'W_INCOMPLETE': W_INCOMPLETE,
+                'W_TIME': W_TIME,
+                'W_VEL': W_VEL,
+                'VTHETA_MAX': VTHETA_MAX,
+                'FREC': FREC,
+            },
+            'trials': history_records,
+        }, fp, indent=2)
+    print(f"\n  ✓ Trial history saved to {hist_path}")
+
+    # ── Save to JSON ─────────────────────────────────────────────────────
     out_path = os.path.join(out_dir, 'best_weights.json')
 
     save_data = {
@@ -258,8 +339,12 @@ def main():
         'user_attrs': {k: float(v) for k, v in best.user_attrs.items()
                        if isinstance(v, (int, float))},
         'objective_info': {
-            'type': 'mean_mpcc_cost + completion_penalty',
+            'type': 'mean_mpcc_cost + completion_penalty + time_penalty + vel_penalty',
             'W_INCOMPLETE': W_INCOMPLETE,
+            'W_TIME': W_TIME,
+            'W_VEL': W_VEL,
+            'VTHETA_MAX': VTHETA_MAX,
+            'FREC': FREC,
         },
     }
 

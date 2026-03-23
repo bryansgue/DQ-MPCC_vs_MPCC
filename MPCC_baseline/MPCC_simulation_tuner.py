@@ -42,13 +42,13 @@ _WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _WORKSPACE_ROOT not in sys.path:
     sys.path.insert(0, _WORKSPACE_ROOT)
 from tuning_config import (
-    VALUE as _CFG_VALUE,
     T_FINAL as _CFG_T_FINAL,
     FREC as _CFG_FREC,
     T_PREDICTION as _CFG_T_PREDICTION,
     N_WAYPOINTS as _CFG_N_WAYPOINTS,
     S_MAX_MANUAL as _CFG_S_MAX_MANUAL,
 )
+from experiment_config import trayectoria as _trayectoria
 
 # ── Project modules ──────────────────────────────────────────────────────────
 from utils.numpy_utils import (
@@ -74,18 +74,9 @@ from ocp.mpcc_controller_tuner import (
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Trajectory (same as MPCC_baseline.py, using tuning_config values)
+#  Trajectory — from experiment_config.py (single source of truth)
+#  _trayectoria is imported above
 # ═══════════════════════════════════════════════════════════════════════════════
-
-def _trayectoria(t):
-    v = _CFG_VALUE
-    xd   = lambda t: 7 * np.sin(v * 0.04 * t) + 3
-    yd   = lambda t: 7 * np.sin(v * 0.08 * t)
-    zd   = lambda t: 1.5 * np.sin(v * 0.08 * t) + 6
-    xd_p = lambda t: 7 * v * 0.04 * np.cos(v * 0.04 * t)
-    yd_p = lambda t: 7 * v * 0.08 * np.cos(v * 0.08 * t)
-    zd_p = lambda t: 1.5 * v * 0.08 * np.cos(v * 0.08 * t)
-    return xd, yd, zd, xd_p, yd_p, zd_p
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -429,6 +420,7 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
         'e_lag':          e_arrastre,
         'theta_history':  theta_hist,
         'success':        success,
+        's_max':          s_max,
     }
 
 

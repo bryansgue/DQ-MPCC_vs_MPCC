@@ -8,6 +8,7 @@ Caller is responsible for fig.savefig(...) and plt.show().
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import matplotlib.ticker as mticker
 
 try:
     from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
@@ -407,9 +408,56 @@ def plot_3d_trajectory(x_actual, pos_ref, s_max=None,
         ax.legend(loc='upper left', frameon=True, fontsize=11)
         _set_3d_equal_aspect(ax, x_actual[:3, :])
     else:
-        # Fallback: 2D projections (XY and XZ)
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+        # 2D projections: XY on top, XZ below
+        # ── Pre-compute data ranges to set axis limits and figure proportions ──
+        all_x = np.concatenate([ref[0], x_actual[0, :]])
+        all_y = np.concatenate([ref[1], x_actual[1, :]])
+        all_z = np.concatenate([ref[2], x_actual[2, :]])
 
+        x_min, x_max = np.nanmin(all_x), np.nanmax(all_x)
+        y_min, y_max = np.nanmin(all_y), np.nanmax(all_y)
+        z_min, z_max = np.nanmin(all_z), np.nanmax(all_z)
+
+        margin_x = (x_max - x_min) * 0.08 if np.isfinite(x_max - x_min) else 1.0
+        margin_y = (y_max - y_min) * 0.08 if np.isfinite(y_max - y_min) else 1.0
+        margin_z = (z_max - z_min) * 0.08 if np.isfinite(z_max - z_min) else 1.0
+
+        xlim = (x_min - margin_x, x_max + margin_x)
+        ylim = (y_min - margin_y, y_max + margin_y)
+        zlim = (z_min - margin_z, z_max + margin_z)
+
+        x_span = xlim[1] - xlim[0]
+        y_span = ylim[1] - ylim[0]
+        z_span = zlim[1] - zlim[0]
+
+        # height_ratios proportional to Y span so 1 m = 1 m in both subplots
+        fig_w   = 9.0
+        px_per_m = fig_w / x_span          # pixels per metre (common X axis)
+        h1 = px_per_m * y_span             # height of XY subplot in inches
+        h2 = px_per_m * z_span             # height of XZ subplot in inches
+        fig_h = h1 + h2 + 1.2              # +1.2 for title/xlabel/spacing
+
+        fig, (ax1, ax2) = plt.subplots(
+            2, 1,
+            figsize=(fig_w, fig_h),
+            sharex=True,
+            gridspec_kw={'height_ratios': [y_span, z_span], 'hspace': 0.08},
+        )
+
+        # ── Common tick step for BOTH Y axes (same physical scale) ────────
+        def _nice_step(span, target_ticks=6):
+            raw = span / target_ticks
+            exp = np.floor(np.log10(raw))
+            frac = raw / 10**exp
+            if frac < 1.5:   nice = 1.0
+            elif frac < 3.5: nice = 2.0
+            elif frac < 7.5: nice = 5.0
+            else:             nice = 10.0
+            return nice * 10**exp
+
+        tick_step = _nice_step(x_span)   # one step for ALL axes (same scale)
+
+        # ── XY (top) ──────────────────────────────────────────────────────
         ax1.plot(ref[0], ref[1], color=C_GREY, lw=1.5, ls='--',
                  alpha=0.6, label='Reference')
         ax1.plot(x_actual[0, :], x_actual[1, :], color=C_BLUE, lw=2.0,
@@ -418,10 +466,16 @@ def plot_3d_trajectory(x_actual, pos_ref, s_max=None,
                     marker='o', zorder=5, label='Start')
         ax1.scatter(x_actual[0, -1], x_actual[1, -1], color=C_RED, s=80,
                     marker='X', zorder=5, label='End')
-        ax1.set_xlabel(r'$x$ [m]');  ax1.set_ylabel(r'$y$ [m]')
-        ax1.set_title('XY Projection');  ax1.legend(fontsize=10);  _grid(ax1)
-        ax1.set_aspect('equal')
+        ax1.set_ylabel(r'$y$ [m]')
+        ax1.set_title('Trajectory Projections')
+        ax1.legend(fontsize=10)
+        ax1.set_xlim(*xlim)
+        ax1.set_ylim(*ylim)
+        ax1.xaxis.set_major_locator(mticker.MultipleLocator(tick_step))
+        ax1.yaxis.set_major_locator(mticker.MultipleLocator(tick_step))
+        _grid(ax1)
 
+        # ── XZ (bottom) ───────────────────────────────────────────────────
         ax2.plot(ref[0], ref[2], color=C_GREY, lw=1.5, ls='--',
                  alpha=0.6, label='Reference')
         ax2.plot(x_actual[0, :], x_actual[2, :], color=C_BLUE, lw=2.0,
@@ -430,8 +484,14 @@ def plot_3d_trajectory(x_actual, pos_ref, s_max=None,
                     marker='o', zorder=5)
         ax2.scatter(x_actual[0, -1], x_actual[2, -1], color=C_RED, s=80,
                     marker='X', zorder=5)
-        ax2.set_xlabel(r'$x$ [m]');  ax2.set_ylabel(r'$z$ [m]')
-        ax2.set_title('XZ Projection');  ax2.legend(fontsize=10);  _grid(ax2)
+        ax2.set_xlabel(r'$x$ [m]')
+        ax2.set_ylabel(r'$z$ [m]')
+        ax2.legend(fontsize=10)
+        ax2.set_xlim(*xlim)
+        ax2.set_ylim(*zlim)
+        ax2.xaxis.set_major_locator(mticker.MultipleLocator(tick_step))
+        ax2.yaxis.set_major_locator(mticker.MultipleLocator(tick_step))
+        _grid(ax2)
 
     fig.tight_layout()
     return fig
@@ -439,8 +499,11 @@ def plot_3d_trajectory(x_actual, pos_ref, s_max=None,
 
 def _set_3d_equal_aspect(ax, data):
     """Set equal aspect ratio for 3D plot given (3, N) data."""
-    max_range = np.max([data[i].max() - data[i].min() for i in range(3)]) / 2.0
-    mid = [(data[i].max() + data[i].min()) / 2.0 for i in range(3)]
+    ranges = [np.nanmax(data[i]) - np.nanmin(data[i]) for i in range(3)]
+    max_range = max(ranges) / 2.0
+    mid = [(np.nanmax(data[i]) + np.nanmin(data[i])) / 2.0 for i in range(3)]
+    if not (np.isfinite(max_range) and all(np.isfinite(m) for m in mid)):
+        return
     ax.set_xlim(mid[0] - max_range, mid[0] + max_range)
     ax.set_ylim(mid[1] - max_range, mid[1] + max_range)
     ax.set_zlim(mid[2] - max_range, mid[2] + max_range)
