@@ -1,0 +1,56 @@
+nohup: ignoring input
+/home/bryansgue/.local/lib/python3.10/site-packages/matplotlib/projections/__init__.py:63: UserWarning: Unable to import Axes3D. This may be due to multiple versions of Matplotlib being installed (e.g. as a system package and as a pip package). As a result, the 3D projection is not available.
+  warnings.warn("Unable to import Axes3D. This may be due to multiple versions of "
+rm -f libacados_ocp_solver_DQ_Drone_MPCC.so
+rm -f acados_solver_DQ_Drone_MPCC.o
+rm -f acados_ocp_solver_pyx.so
+rm -f acados_ocp_solver_pyx.o
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun_jac_uxt_zt.o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun_jac_uxt_zt.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun.o DQ_Drone_MPCC_constraints/DQ_Drone_MPCC_constr_h_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun.c
+cc -fPIC -std=c99   -O2 -I/home/bryansgue/acados/include -I/home/bryansgue/acados/include/acados -I/home/bryansgue/acados/include/blasfeo/include -I/home/bryansgue/acados/include/hpipm/include  -c -o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac_hess.o DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac_hess.c
+Assembler messages:
+Fatal error: can't create DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac_hess.o: No such file or directory
+make: *** [<builtin>: DQ_Drone_MPCC_cost/DQ_Drone_MPCC_cost_ext_cost_0_fun_jac_hess.o] Error 1
+[experiment_config] ✓ DQ-MPCC weights loaded from /home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/tuning/best_weights.json
+[experiment_config] ✓ MPCC weights loaded from /home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/MPCC_baseline/tuning/best_weights.json
+======================================================================
+  DQ-MPCC BILEVEL GAIN TUNER
+======================================================================
+
+  Sampler : TPE
+  Trials  : 200
+  Study   : dq_mpcc_tuning
+  Storage : in-memory
+
+[1/3] Building infrastructure (trajectory + solver) ...
+[DQ-TUNER] Building tunable DQ-MPCC solver (compiles ONCE) ...
+
+WARNING: Gauss-Newton Hessian approximation with EXTERNAL cost type not well defined!
+got cost_type EXTERNAL for cost_type_0, cost_type, cost_type_e, hessian_approx: 'GAUSS_NEWTON'.
+With this setting, acados will proceed computing the exact Hessian for the cost term and no Hessian contribution from constraints and dynamics.
+If the external cost is a linear least squares cost, this coincides with the Gauss-Newton Hessian.
+Note: There is also the option to use the external cost module with a numerical Hessian approximation (see `ext_cost_num_hess`).
+OR the option to provide a symbolic custom Hessian approximation (see `cost_expr_ext_cost_custom_hess`).
+
+Traceback (most recent call last):
+  File "/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/tuning/dq_mpcc_tuner.py", line 371, in <module>
+    main()
+  File "/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/tuning/dq_mpcc_tuner.py", line 248, in main
+    _ = run_simulation(weights=None, verbose=False)
+  File "/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/DQ_MPCC_simulation_tuner.py", line 237, in run_simulation
+    infra = _get_infra()
+  File "/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/DQ_MPCC_simulation_tuner.py", line 193, in _get_infra
+    _INFRA = _build_infrastructure()
+  File "/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/DQ_MPCC_simulation_tuner.py", line 170, in _build_infrastructure
+    solver, ocp, model, f = build_dq_mpcc_solver_tunable(
+  File "/home/bryansgue/dev/ros2/DQ-MPCC_vs_MPCC_baseline/DQ-MPCC_baseline/ocp/dq_mpcc_controller_tuner.py", line 295, in build_dq_mpcc_solver_tunable
+    acados_ocp_solver = AcadosOcpSolver.create_cython_solver(solver_json)
+  File "/home/bryansgue/acados/interfaces/acados_template/acados_template/acados_ocp_solver.py", line 194, in create_cython_solver
+    acados_ocp_solver_pyx = importlib.import_module(f'{os.path.split(code_export_directory)[1]}.acados_ocp_solver_pyx')
+  File "/usr/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1004, in _find_and_load_unlocked
+ModuleNotFoundError: No module named 'c_generated_code_dq_tuner.acados_ocp_solver_pyx'

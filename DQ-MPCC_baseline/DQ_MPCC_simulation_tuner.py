@@ -46,13 +46,13 @@ _WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _WORKSPACE_ROOT not in sys.path:
     sys.path.insert(0, _WORKSPACE_ROOT)
 from tuning_config import (
-    VALUE as _CFG_VALUE,
     T_FINAL as _CFG_T_FINAL,
     FREC as _CFG_FREC,
     T_PREDICTION as _CFG_T_PREDICTION,
     N_WAYPOINTS as _CFG_N_WAYPOINTS,
     S_MAX_MANUAL as _CFG_S_MAX_MANUAL,
 )
+from experiment_config import trayectoria as _trayectoria
 
 # ── Project modules ──────────────────────────────────────────────────────────
 from utils.numpy_utils import (
@@ -89,18 +89,9 @@ from ocp.dq_mpcc_controller_tuner import (
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Trajectory (same as DQ_MPCC_baseline.py, using tuning_config values)
+#  Trajectory — from experiment_config.py (single source of truth)
+#  _trayectoria is imported above
 # ═══════════════════════════════════════════════════════════════════════════════
-
-def _trayectoria(t):
-    v = _CFG_VALUE
-    xd   = lambda t: 7 * np.sin(v * 0.04 * t) + 3
-    yd   = lambda t: 7 * np.sin(v * 0.08 * t)
-    zd   = lambda t: 1.5 * np.sin(v * 0.08 * t) + 6
-    xd_p = lambda t: 7 * v * 0.04 * np.cos(v * 0.04 * t)
-    yd_p = lambda t: 7 * v * 0.08 * np.cos(v * 0.08 * t)
-    zd_p = lambda t: 1.5 * v * 0.08 * np.cos(v * 0.08 * t)
-    return xd, yd, zd, xd_p, yd_p, zd_p
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -207,7 +198,8 @@ def _get_infra():
 #  Simulation runner
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
+def run_simulation(weights: dict | None = None, verbose: bool = False,
+                   vtheta_max: float | None = None) -> dict:
     """Run a full DQ-MPCC simulation with the given weights.
 
     Parameters
@@ -222,6 +214,10 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
             'Q_s'     – float  progress speed
     verbose : bool
         If True, print per-step info.
+    vtheta_max : float or None
+        Override for the maximum progress velocity v_θ used in both the
+        cost function  Q_s·(v_max − v_θ)²  and the control constraint
+        u[4] ≤ v_max.  If None, DEFAULT_VTHETA_MAX is used.
 
     Returns
     -------
@@ -261,10 +257,23 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
     nx = model.x.size()[0]   # 15
     nu = model.u.size()[0]   # 5
 
+    # ── Resolve effective v_theta_max ────────────────────────────────────
+    v_theta_max = float(vtheta_max) if vtheta_max is not None else DEFAULT_VTHETA_MAX
+
     # ── Set runtime parameters on ALL stages ─────────────────────────────
     p_vec = weights_to_param_vector(weights)
+    p_vec[17] = v_theta_max        # inject v_theta_max into parameter vector
     for stage in range(N_prediction + 1):
         solver.set(stage, "p", p_vec)
+
+    # ── Update v_theta upper bound constraint to match ───────────────────
+    from ocp.dq_mpcc_controller_tuner import (
+        DEFAULT_T_MAX, DEFAULT_TAUX_MAX, DEFAULT_TAUY_MAX, DEFAULT_TAUZ_MAX,
+    )
+    ubu = np.array([DEFAULT_T_MAX, DEFAULT_TAUX_MAX, DEFAULT_TAUY_MAX,
+                     DEFAULT_TAUZ_MAX, v_theta_max])
+    for stage in range(N_prediction):
+        solver.constraints_set(stage, "ubu", ubu)
 
     # ── Extract weight values for numerical DQ-MPCC cost computation ─────
     w = weights or {}
@@ -274,7 +283,6 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
     U_mat_vec   = np.array(w.get('U_mat',   p_vec[9:13]))
     Q_omega_vec = np.array(w.get('Q_omega', p_vec[13:16]))
     Q_s_val     = float(w.get('Q_s',        p_vec[16]))
-    v_theta_max = DEFAULT_VTHETA_MAX
 
     # ── Storage ──────────────────────────────────────────────────────────
     x            = np.zeros((nx, N_sim + 1))
@@ -473,6 +481,7 @@ def run_simulation(weights: dict | None = None, verbose: bool = False) -> dict:
         'e_lag':          e_arrastre,
         'theta_history':  theta_hist,
         'success':        success,
+        's_max':          s_max,
     }
 
 

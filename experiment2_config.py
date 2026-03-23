@@ -1,25 +1,41 @@
 """
 experiment2_config.py — Configuration for Experiment 2: Velocity Sweep.
 
-Defines the sweep velocities, number of Monte Carlo runs per speed,
-and initial condition perturbation magnitudes.
+Imports shared parameters from experiment_config.py (single source of truth)
+and only overrides what is specific to this experiment.
 
-Does NOT modify experiment_config.py (Experiment 1).
+>>> Change shared params in experiment_config.py — they propagate here. <<<
 """
 
 import numpy as np
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  Sweep parameters
+#  Shared parameters from experiment_config (single source of truth)
+# ═════════════════════════════════════════════════════════════════════════════
+
+from experiment_config import (
+    S_MAX_MANUAL,        # arc-length limit [m]
+    FREC,                # control frequency [Hz]
+    T_PREDICTION,        # MPC prediction horizon [s]
+    N_WAYPOINTS,         # CasADi interpolation waypoints
+    VTHETA_MAX,          # nominal progress velocity [m/s]
+)
+
+# Re-export S_MAX with the name consumers expect
+S_MAX = S_MAX_MANUAL if S_MAX_MANUAL is not None else 80
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  Sweep parameters  (specific to Experiment 2)
 # ═════════════════════════════════════════════════════════════════════════════
 
 # Maximum virtual progress speeds to test [m/s]
-# ── Quick test: 3 speeds.  Full sweep: add more as needed ──
-VELOCITIES = [8, 12, 15]
+VELOCITIES = [4, 6, 8, 10, 12, 15, 16, 18]
 
 # Number of Monte Carlo runs per speed per controller
 # ── Quick test: 2 runs.  Final experiment: set to 50 ──
-N_RUNS = 5
+N_RUNS = 10
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  Initial condition perturbations (applied to nominal IC from experiment_config)
@@ -34,21 +50,13 @@ SIGMA_Q = 0.05
 # Random seed for reproducibility
 SEED = 42
 
+
 # ═════════════════════════════════════════════════════════════════════════════
-#  Simulation settings (override experiment_config for this experiment)
+#  Timing override  (Experiment 2 only)
+#
+#  At high speeds the drone finishes 80 m much faster, so we use a shorter
+#  safety budget than production (60 s).  The slowest speed (4 m/s) needs
+#  ≈ 80/4 = 20 s theoretical, so 30 s gives plenty of margin.
 # ═════════════════════════════════════════════════════════════════════════════
 
-# Fixed arc-length for all runs [m]
-S_MAX = 100.0
-
-# Safety time budget [s]
-T_FINAL = 30
-
-# Control frequency [Hz]
-FREC = 100
-
-# Prediction horizon [s]
-T_PREDICTION = 0.3
-
-# CasADi interpolation waypoints
-N_WAYPOINTS = 30
+T_FINAL = 30   # [s]  (production uses 60 s)

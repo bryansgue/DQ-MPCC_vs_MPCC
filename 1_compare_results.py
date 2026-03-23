@@ -25,6 +25,8 @@ import numpy as np
 from scipy.io import loadmat, savemat
 from scipy.interpolate import interp1d
 
+from experiment_config import trayectoria as _trayectoria_config
+
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
@@ -317,11 +319,11 @@ def generate_mock_data(N=1500, t_final=15.0):
     t = np.linspace(0, t_final, N)
     dt = t[1] - t[0]
 
-    # ── Lissajous reference path ─────────────────────────────────────────
-    v = 5.0
-    ref_x = 7.0 * np.sin(v * 0.04 * t) + 3.0
-    ref_y = 7.0 * np.sin(v * 0.08 * t)
-    ref_z = 1.5 * np.sin(v * 0.08 * t) + 6.0
+    # ── Lissajous reference path (from experiment_config) ──────────────
+    xd, yd, zd, _, _, _ = _trayectoria_config()
+    ref_x = xd(t)
+    ref_y = yd(t)
+    ref_z = zd(t)
     ref_pos = np.column_stack([ref_x, ref_y, ref_z])
     curvature = _compute_path_curvature(ref_pos)
 

@@ -25,7 +25,7 @@ os.makedirs(_OUT_DIR, exist_ok=True)
 
 # ── Import experiment configs ────────────────────────────────────────────────
 sys.path.insert(0, _ROOT)
-from experiment_config import P0, Q0, VALUE
+from experiment_config import P0, Q0, VALUE, trayectoria
 from experiment2_config import (
     VELOCITIES, N_RUNS, SIGMA_P, SIGMA_Q, SEED,
     S_MAX, T_FINAL, FREC, T_PREDICTION, N_WAYPOINTS,
@@ -92,17 +92,11 @@ def _quat_conj(q):
 
 def _build_trajectory():
     """Build arc-length parameterised Lissajous and return helpers."""
-    v = VALUE
     t_s = 1.0 / FREC
     t = np.arange(0, T_FINAL + t_s, t_s)
     t_finer = np.linspace(0, T_FINAL, len(t))
 
-    xd   = lambda t: 7 * np.sin(v * 0.04 * t) + 3
-    yd   = lambda t: 7 * np.sin(v * 0.08 * t)
-    zd   = lambda t: 1.5 * np.sin(v * 0.08 * t) + 6
-    xd_p = lambda t: 7 * v * 0.04 * np.cos(v * 0.04 * t)
-    yd_p = lambda t: 7 * v * 0.08 * np.cos(v * 0.08 * t)
-    zd_p = lambda t: 1.5 * v * 0.08 * np.cos(v * 0.08 * t)
+    xd, yd, zd, xd_p, yd_p, zd_p = trayectoria()
 
     return t, t_finer, xd, yd, zd, xd_p, yd_p, zd_p
 

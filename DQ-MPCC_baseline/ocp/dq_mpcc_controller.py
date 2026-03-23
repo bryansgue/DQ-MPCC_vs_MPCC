@@ -23,6 +23,7 @@ Cost structure:
 """
 
 import os
+import sys
 import shutil
 import numpy as np
 from casadi import MX, vertcat, norm_2, dot
@@ -38,28 +39,37 @@ from utils.dq_casadi_utils import (
     lag_contouring_decomposition,
 )
 
+# ── Shared experiment parameters ─────────────────────────────────────────────
+_WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
+if _WORKSPACE_ROOT not in sys.path:
+    sys.path.insert(0, _WORKSPACE_ROOT)
+from experiment_config import (
+    G,
+    T_MAX as _CFG_T_MAX, T_MIN as _CFG_T_MIN,
+    TAUX_MAX as _CFG_TAUX_MAX, TAUY_MAX as _CFG_TAUY_MAX, TAUZ_MAX as _CFG_TAUZ_MAX,
+    VTHETA_MIN as _CFG_VTHETA_MIN, VTHETA_MAX as _CFG_VTHETA_MAX,
+    DQ_Q_PHI, DQ_Q_EC, DQ_Q_EL, DQ_U_MAT, DQ_Q_OMEGA, DQ_Q_S,
+)
+
 
 # ──────────────────────────────────────────────────────────────────────────────
-#  Default cost weights
+#  Weights & limits — all imported from experiment_config.py
 # ──────────────────────────────────────────────────────────────────────────────
+DEFAULT_Q_PHI   = DQ_Q_PHI
+DEFAULT_Q_EC    = DQ_Q_EC
+DEFAULT_Q_EL    = DQ_Q_EL
+DEFAULT_U_MAT   = DQ_U_MAT
+DEFAULT_Q_OMEGA = DQ_Q_OMEGA
+DEFAULT_Q_S     = DQ_Q_S
 
-
-DEFAULT_Q_EC    = [10.0, 10.0, 10.0]
-DEFAULT_Q_EL    = [5.0, 5.0, 5.0]
-DEFAULT_Q_PHI    = [5.0, 5.0, 5.0]
-DEFAULT_U_MAT   = [0.1, 250.0, 250.0, 250.0]
-DEFAULT_Q_OMEGA = [0.5, 0.5, 0.5]
-DEFAULT_Q_S     = 0.3
-
-
-G = 9.81
-DEFAULT_T_MAX      = 10 * G
-DEFAULT_T_MIN      = 0.0
-DEFAULT_TAUX_MAX   = 0.5
-DEFAULT_TAUY_MAX   = 0.5
-DEFAULT_TAUZ_MAX   = 0.5
-DEFAULT_VTHETA_MIN = 0.0
-DEFAULT_VTHETA_MAX = 15.0
+DEFAULT_T_MAX      = _CFG_T_MAX
+DEFAULT_T_MIN      = _CFG_T_MIN
+DEFAULT_TAUX_MAX   = _CFG_TAUX_MAX
+DEFAULT_TAUY_MAX   = _CFG_TAUY_MAX
+DEFAULT_TAUZ_MAX   = _CFG_TAUZ_MAX
+DEFAULT_VTHETA_MIN = _CFG_VTHETA_MIN
+DEFAULT_VTHETA_MAX = _CFG_VTHETA_MAX
 
 
 # ══════════════════════════════════════════════════════════════════════════════

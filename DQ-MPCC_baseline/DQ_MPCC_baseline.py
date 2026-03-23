@@ -25,7 +25,8 @@ from scipy.io import savemat
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from experiment_config import (
     P0, Q0, V0, W0, THETA0,
-    VALUE, T_FINAL, FREC, T_PREDICTION, N_WAYPOINTS, S_MAX_MANUAL,
+    T_FINAL, FREC, T_PREDICTION, N_WAYPOINTS, S_MAX_MANUAL,
+    trayectoria,
 )
 
 # ── Project modules ──────────────────────────────────────────────────────────
@@ -62,24 +63,9 @@ from utils.graficas import (
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Constants — imported from experiment_config.py
-#  (VALUE, S_MAX_MANUAL, T_FINAL, FREC, T_PREDICTION, N_WAYPOINTS,
-#   P0, Q0, V0, W0, THETA0 are all set in experiment_config.py)
+#  (S_MAX_MANUAL, T_FINAL, FREC, T_PREDICTION, N_WAYPOINTS,
+#   P0, Q0, V0, W0, THETA0, trayectoria are all set in experiment_config.py)
 # ═══════════════════════════════════════════════════════════════════════════════
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Trajectory generators (same as MPCC_baseline)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def trayectoria(t):
-    v = VALUE
-    xd   = lambda t: 7 * np.sin(v * 0.04 * t) + 3
-    yd   = lambda t: 7 * np.sin(v * 0.08 * t)
-    zd   = lambda t: 1.5 * np.sin(v * 0.08 * t) + 6
-    xd_p = lambda t: 7 * v * 0.04 * np.cos(v * 0.04 * t)
-    yd_p = lambda t: 7 * v * 0.08 * np.cos(v * 0.08 * t)
-    zd_p = lambda t: 1.5 * v * 0.08 * np.cos(v * 0.08 * t)
-    return xd, yd, zd, xd_p, yd_p, zd_p
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -179,20 +165,26 @@ def main():
     # ── Control storage (5-dim) ──────────────────────────────────────────
     u_control = np.zeros((5, N_sim), dtype=np.double)
 
-    # ── Create CasADi trajectory interpolation  (θ → reference) ──────────
+    # ── Build DQ-MPCC solver ─────────────────────────────────────────────
+    # Pass s_max * 1.2 so the solver's θ upper-bound is extended beyond the
+    # finish line — prevents the predictive horizon from braking early.
+    # Clamp to s_max_full so the interpolation never goes out of range.
+    S_MAX_SOLVER = min(s_max * 1.2, s_max_full)
+
+    # Build waypoints up to S_MAX_SOLVER so the CasADi interpolation
+    # covers the entire range the solver can explore.
     s_wp, pos_wp, tang_wp, quat_wp = build_waypoints(
-        s_max, N_WAYPOINTS, position_by_arc_length, tangent_by_arc_length,
+        S_MAX_SOLVER, N_WAYPOINTS, position_by_arc_length, tangent_by_arc_length,
         euler_to_quat_fn=euler_to_quaternion,
     )
 
     gamma_pos  = create_casadi_position_interpolator(s_wp, pos_wp)
     gamma_vel  = create_casadi_tangent_interpolator(s_wp, tang_wp)
     gamma_quat = create_casadi_quat_interpolator(s_wp, quat_wp)
-    print(f"[INTERP] Created CasADi interpolation with {N_WAYPOINTS} waypoints")
-
-    # ── Build DQ-MPCC solver ─────────────────────────────────────────────
+    print(f"[INTERP] Created CasADi interpolation with {N_WAYPOINTS} waypoints "
+          f"(s_max_solver={S_MAX_SOLVER:.2f})")
     acados_ocp_solver, ocp, model, f = build_dq_mpcc_solver(
-        x[:, 0], N_prediction, t_prediction, s_max=s_max,
+        x[:, 0], N_prediction, t_prediction, s_max=S_MAX_SOLVER,
         gamma_pos=gamma_pos, gamma_vel=gamma_vel, gamma_quat=gamma_quat,
         use_cython=True,
     )

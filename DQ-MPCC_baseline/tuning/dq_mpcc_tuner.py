@@ -46,11 +46,13 @@ from DQ_MPCC_simulation_tuner import run_simulation
 
 # ── Shared tuning configuration ──────────────────────────────────────────────
 from tuning_config import (
-    W_INCOMPLETE,
+    W_INCOMPLETE, W_TIME, W_VEL, W_ISOTROPY, W_CONTOUR,
+    FREC, VTHETA_MAX,
     DEFAULT_N_TRIALS, DEFAULT_SAMPLER, N_STARTUP_TRIALS, OPTUNA_SEED,
     Q_EC_RANGE, Q_EL_RANGE, Q_ROT_RANGE,
     U_T_RANGE, U_TAU_RANGE,
     Q_OMEGA_RANGE, Q_S_RANGE,
+    TUNING_VELOCITIES,
 )
 
 try:
@@ -125,57 +127,121 @@ def dict_to_weights(d: dict) -> dict:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  Objective function
+#  Single-velocity sub-objective
 # ══════════════════════════════════════════════════════════════════════════════
 
-def objective(trial) -> float:
-    """Evaluate one set of gains by running the full DQ-MPCC simulation.
+def _evaluate_single_velocity(weights: dict, v_max: float,
+                              verbose_label: str = "") -> tuple[float, dict]:
+    """Run a DQ-MPCC simulation at a specific v_theta_max and return (J, info).
 
-    The objective is the MEAN DQ-MPCC stage cost (same formula used inside the
-    acados solver), plus a large penalty if the path is not fully completed.
+    Returns
+    -------
+    J     : float   sub-objective for this velocity
+    info  : dict    metrics dictionary from run_simulation
     """
-    weights = trial_to_weights(trial)
-
     try:
-        t0 = time.time()
-        result = run_simulation(weights=weights, verbose=False)
-        wall = time.time() - t0
+        result = run_simulation(weights=weights, verbose=False, vtheta_max=v_max)
     except Exception as e:
-        print(f"  [FAIL] Trial {trial.number}: {e}", flush=True)
-        return 1e6   # penalise crashes
+        return 1e6, {'error': str(e)}
 
     mpcc_cost = result['mean_mpcc_cost']
     compl     = result['path_completed']
     rmse_c    = result['rmse_contorno']
-    rmse_l    = result['rmse_lag']
-    effort    = result['mean_effort']
+    v_mean    = float(result['mean_vtheta'])
+    N_steps   = result['N_steps']
+    s_max     = result['s_max']
 
-    # ── Guard against NaN / Inf (divergent trial) ────────────────────────
+    # Guard against NaN / Inf
     if not np.isfinite(mpcc_cost) or not np.isfinite(rmse_c):
-        print(f"  [Trial {trial.number:3d}]  DIVERGED (NaN/Inf) — penalising", flush=True)
-        return 1e6
+        return 1e6, result
 
-    # ── Objective = DQ-MPCC cost + completion penalty ────────────────────
     J = mpcc_cost
+
+    # Completion penalty
     if compl < 0.99:
         J += W_INCOMPLETE * (1.0 - compl)
 
-    print(f"  [Trial {trial.number:3d}]  J={J:8.3f}  "
-          f"J_mpcc={mpcc_cost:.4f}  "
-          f"RMSE_c={rmse_c:.4f}  RMSE_l={rmse_l:.4f}  "
-          f"effort={effort:.1f}  path={compl*100:.1f}%  "
-          f"({wall:.1f}s)", flush=True)
+    # Term A: penalise long lap times
+    t_s   = 1.0 / FREC
+    t_lap = N_steps * t_s
+    T_ref = s_max / v_max
+    J += W_TIME * (t_lap / T_ref)
 
-    # Store sub-metrics for later analysis
-    trial.set_user_attr('mean_mpcc_cost', mpcc_cost)
-    trial.set_user_attr('total_mpcc_cost', result['total_mpcc_cost'])
-    trial.set_user_attr('rmse_contorno', rmse_c)
-    trial.set_user_attr('rmse_lag', rmse_l)
-    trial.set_user_attr('mean_effort', effort)
-    trial.set_user_attr('path_completed', compl)
-    trial.set_user_attr('wall_time', wall)
+    # Term B: penalise low mean progress velocity
+    vel_ratio = max(0.0, (v_max - v_mean)) / v_max
+    J += W_VEL * vel_ratio
 
-    return J
+    # Term C: axis-anisotropy
+    e_cont_3 = result['e_contorno']
+    e_lag_3  = result['e_lag']
+    e_all_3  = np.sqrt(e_cont_3**2 + e_lag_3**2)
+    rmse_xyz = np.sqrt(np.mean(e_all_3**2, axis=1))
+    aniso    = rmse_xyz.max() / (rmse_xyz.min() + 1e-8) - 1.0
+    J += W_ISOTROPY * aniso
+
+    # Term D: contouring error
+    J += W_CONTOUR * rmse_c
+
+    result['_J'] = J
+    result['_t_lap'] = N_steps * t_s
+    result['_aniso'] = aniso
+    return J, result
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Multi-velocity objective function
+# ══════════════════════════════════════════════════════════════════════════════
+
+def objective(trial) -> float:
+    """Evaluate one set of gains across MULTIPLE representative velocities.
+
+    The objective is the MEAN sub-objective over TUNING_VELOCITIES:
+        J_multi = (1/|V|) * Σ_v  J(w, v)
+
+    This produces a single robust weight set that generalises across
+    the entire velocity sweep, avoiding over-fitting to one speed.
+    """
+    weights = trial_to_weights(trial)
+
+    t0_total = time.time()
+    J_per_vel = {}
+    info_per_vel = {}
+
+    for v_max in TUNING_VELOCITIES:
+        J_v, info_v = _evaluate_single_velocity(weights, v_max)
+        J_per_vel[v_max] = J_v
+        info_per_vel[v_max] = info_v
+
+    # Mean objective across velocities
+    J_multi = np.mean(list(J_per_vel.values()))
+    wall_total = time.time() - t0_total
+
+    # ── Logging ──────────────────────────────────────────────────────────
+    parts = []
+    for v in TUNING_VELOCITIES:
+        info = info_per_vel[v]
+        if isinstance(info, dict) and 'path_completed' in info:
+            parts.append(f"v={v}: J={J_per_vel[v]:.2f} "
+                        f"path={info['path_completed']*100:.0f}% "
+                        f"v̄θ={float(info.get('mean_vtheta', 0)):.1f}")
+        else:
+            parts.append(f"v={v}: FAIL")
+
+    print(f"  [Trial {trial.number:3d}]  J_multi={J_multi:8.3f}  "
+          f"{'  |  '.join(parts)}  ({wall_total:.1f}s)", flush=True)
+
+    # ── Store sub-metrics ────────────────────────────────────────────────
+    trial.set_user_attr('J_multi', float(J_multi))
+    trial.set_user_attr('wall_time', wall_total)
+    for v in TUNING_VELOCITIES:
+        info = info_per_vel[v]
+        if isinstance(info, dict) and 'path_completed' in info:
+            trial.set_user_attr(f'J_v{v}', float(J_per_vel[v]))
+            trial.set_user_attr(f'path_v{v}', float(info['path_completed']))
+            trial.set_user_attr(f'vtheta_v{v}', float(info.get('mean_vtheta', 0)))
+            trial.set_user_attr(f'rmse_c_v{v}', float(info.get('rmse_contorno', 0)))
+
+    return J_multi
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -184,13 +250,13 @@ def objective(trial) -> float:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Bilevel optimisation of DQ-MPCC cost weights')
+        description='Bilevel optimisation of DQ-MPCC cost weights (multi-velocity)')
     parser.add_argument('--n-trials', type=int, default=DEFAULT_N_TRIALS,
                         help=f'Number of Optuna trials (default: {DEFAULT_N_TRIALS})')
     parser.add_argument('--sampler', type=str, default=DEFAULT_SAMPLER,
                         choices=['tpe', 'cmaes'],
                         help=f'Optuna sampler: tpe or cmaes (default: {DEFAULT_SAMPLER})')
-    parser.add_argument('--study-name', type=str, default='dq_mpcc_tuning',
+    parser.add_argument('--study-name', type=str, default='dq_mpcc_tuning_multivel',
                         help='Optuna study name')
     parser.add_argument('--db', type=str, default=None,
                         help='Optuna storage (e.g. sqlite:///tuning.db). '
@@ -203,15 +269,15 @@ def main():
 
     # ── Force first infrastructure build (compiles solver ONCE) ──────────
     print("="*70)
-    print("  DQ-MPCC BILEVEL GAIN TUNER")
+    print("  DQ-MPCC BILEVEL GAIN TUNER  (multi-velocity)")
     print("="*70)
-    print(f"\n  Sampler : {args.sampler.upper()}")
-    print(f"  Trials  : {args.n_trials}")
-    print(f"  Study   : {args.study_name}")
-    print(f"  Storage : {args.db or 'in-memory'}\n")
+    print(f"\n  Sampler    : {args.sampler.upper()}")
+    print(f"  Trials     : {args.n_trials}")
+    print(f"  Velocities : {TUNING_VELOCITIES}")
+    print(f"  Study      : {args.study_name}")
+    print(f"  Storage    : {args.db or 'in-memory'}\n")
 
     print("[1/3] Building infrastructure (trajectory + solver) ...")
-    # Trigger the solver compilation by running once with defaults
     t0 = time.time()
     _ = run_simulation(weights=None, verbose=False)
     print(f"[1/3] Done. Baseline simulation took {time.time()-t0:.1f}s\n")
@@ -231,7 +297,8 @@ def main():
     )
 
     # ── Run optimisation ─────────────────────────────────────────────────
-    print(f"[2/3] Running {args.n_trials} trials ...\n")
+    print(f"[2/3] Running {args.n_trials} trials "
+          f"(×{len(TUNING_VELOCITIES)} velocities each) ...\n")
     study.optimize(objective, n_trials=args.n_trials, show_progress_bar=True)
 
     # ── Results ──────────────────────────────────────────────────────────
@@ -239,25 +306,71 @@ def main():
     best_weights = dict_to_weights(best.params)
 
     print("\n" + "="*70)
-    print("  OPTIMISATION COMPLETE")
+    print("  OPTIMISATION COMPLETE  (multi-velocity)")
     print("="*70)
-    print(f"\n  Best trial : #{best.number}")
-    print(f"  Best J     : {best.value:.4f}")
-    print(f"  MPCC cost  : {best.user_attrs.get('mean_mpcc_cost', '?')}")
-    print(f"  RMSE_c     : {best.user_attrs.get('rmse_contorno', '?')}")
-    print(f"  RMSE_l     : {best.user_attrs.get('rmse_lag', '?')}")
-    print(f"  Effort     : {best.user_attrs.get('mean_effort', '?')}")
-    print(f"  Path       : {best.user_attrs.get('path_completed', '?')}")
+    print(f"\n  Best trial  : #{best.number}")
+    print(f"  Best J_multi: {best.value:.4f}")
+    print(f"  Velocities  : {TUNING_VELOCITIES}")
+    for v in TUNING_VELOCITIES:
+        J_v = best.user_attrs.get(f'J_v{v}', '?')
+        p_v = best.user_attrs.get(f'path_v{v}', '?')
+        vt  = best.user_attrs.get(f'vtheta_v{v}', '?')
+        rc  = best.user_attrs.get(f'rmse_c_v{v}', '?')
+        print(f"    v={v:2d}: J={J_v}  path={p_v}  v̄θ={vt}  RMSE_c={rc}")
     print(f"\n  Best weights:")
     for key, val in best_weights.items():
         print(f"    {key:10s} = {val}")
 
-    # ── Save to JSON ─────────────────────────────────────────────────────
+    # ── Save trial history (for convergence plots) ───────────────────────
     out_dir = os.path.dirname(os.path.abspath(__file__))
+
+    history_records = []
+    best_so_far = float('inf')
+    for t in study.trials:
+        if t.state == optuna.trial.TrialState.COMPLETE:
+            J_val = t.value
+            best_so_far = min(best_so_far, J_val)
+            record = {
+                'trial':          t.number,
+                'J_multi':        J_val,
+                'best_J_so_far':  best_so_far,
+                'wall_time':      t.user_attrs.get('wall_time'),
+            }
+            # Per-velocity breakdown
+            for v in TUNING_VELOCITIES:
+                record[f'J_v{v}']      = t.user_attrs.get(f'J_v{v}')
+                record[f'path_v{v}']   = t.user_attrs.get(f'path_v{v}')
+                record[f'vtheta_v{v}'] = t.user_attrs.get(f'vtheta_v{v}')
+                record[f'rmse_c_v{v}'] = t.user_attrs.get(f'rmse_c_v{v}')
+            history_records.append(record)
+
+    hist_path = os.path.join(out_dir, 'tuning_history.json')
+    with open(hist_path, 'w') as fp:
+        json.dump({
+            'controller': 'DQ-MPCC',
+            'strategy': 'multi-velocity',
+            'tuning_velocities': TUNING_VELOCITIES,
+            'n_trials': len(history_records),
+            'sampler': args.sampler,
+            'objective_info': {
+                'type': 'MEAN over velocities of (dq_mpcc_cost + completion + time + vel + isotropy + contour)',
+                'W_INCOMPLETE': W_INCOMPLETE,
+                'W_TIME': W_TIME,
+                'W_VEL': W_VEL,
+                'W_ISOTROPY': W_ISOTROPY,
+                'W_CONTOUR': W_CONTOUR,
+                'TUNING_VELOCITIES': TUNING_VELOCITIES,
+                'FREC': FREC,
+            },
+            'trials': history_records,
+        }, fp, indent=2)
+    print(f"\n  ✓ Trial history saved to {hist_path}")
+
+    # ── Save to JSON ─────────────────────────────────────────────────────
     out_path = os.path.join(out_dir, 'best_weights.json')
 
     save_data = {
-        'best_J': best.value,
+        'best_J_multi': best.value,
         'best_trial': best.number,
         'weights': {k: (v if isinstance(v, (int, float)) else list(v))
                     for k, v in best_weights.items()},
@@ -265,8 +378,15 @@ def main():
         'user_attrs': {k: float(v) for k, v in best.user_attrs.items()
                        if isinstance(v, (int, float))},
         'objective_info': {
-            'type': 'mean_dq_mpcc_cost + completion_penalty',
+            'type': 'MEAN over velocities of (dq_mpcc_cost + completion + time + vel + isotropy + contour)',
+            'strategy': 'multi-velocity',
+            'TUNING_VELOCITIES': TUNING_VELOCITIES,
             'W_INCOMPLETE': W_INCOMPLETE,
+            'W_TIME': W_TIME,
+            'W_VEL': W_VEL,
+            'W_ISOTROPY': W_ISOTROPY,
+            'W_CONTOUR': W_CONTOUR,
+            'FREC': FREC,
         },
     }
 
