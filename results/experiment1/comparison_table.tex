@@ -1,0 +1,33 @@
+% ────────────────────────────────────────────────────────────
+% Comparison table: DQ-MPCC vs Baseline MPCC
+% Generated automatically by compare_results.py
+% Requires: \usepackage{booktabs,siunitx,multirow}
+% ────────────────────────────────────────────────────────────
+\begin{table}[t]
+  \centering
+  \caption{Performance comparison between DQ-MPCC and Baseline MPCC
+           over a fixed 100\,m Lissajous path. Statistics are
+           mean\,$\pm$\,std (max) computed over the full lap.}
+  \label{tab:comparison}
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{l S[table-format=2.4] @{\,$\pm$\,} S[table-format=1.4] S[table-format=2.4] S[table-format=2.4] @{\,$\pm$\,} S[table-format=1.4] S[table-format=2.4]}
+    \toprule
+    \multirow{2}{*}{\textbf{}}
+      & \multicolumn{3}{c}{\textbf{DQ-MPCC}}
+      & \multicolumn{3}{c}{\textbf{Baseline MPCC}} \\
+    \cmidrule(lr){2-4} \cmidrule(lr){5-7}
+      & {Mean} & {Std} & {Max}
+      & {Mean} & {Std} & {Max} \\
+    \midrule
+    $\|\mathbf{e}_p\|$ [m] & 0.6256 & 0.6717 & 3.3977 & 0.5672 & 0.5460 & 3.0049 \\
+    $\|\mathrm{Log}(q_e)\|$ [rad] & 1.1720 & 0.4525 & 2.0119 & 1.4744 & 0.5630 & 2.9832 \\
+    $\|\boldsymbol{e}_c\|$ [m] & 0.4140 & 0.4229 & 2.2087 & 0.4381 & 0.4215 & 2.2286 \\
+    $\|\boldsymbol{e}_\ell\|$ [m] & 0.3964 & 0.5788 & 2.6878 & 0.3033 & 0.3978 & 2.0301 \\
+    $v_\theta$ [m/s] & 12.5124 & 1.2914 & 14.6105 & 12.6269 & 2.5171 & 15.0000 \\
+    $\|\mathbf{v}\|$ [m/s] & 11.6438 & 2.5865 & 18.4780 & 12.2405 & 3.0697 & 18.4328 \\
+    \midrule
+    $t_\mathrm{lap}$ [s] & \multicolumn{3}{c}{6.400} & \multicolumn{3}{c}{6.340} \\
+    $t_\mathrm{solve}$ [ms] & 6.30 & 0.82 & 13.06 & 3.18 & 0.40 & 5.09 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
