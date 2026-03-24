@@ -125,7 +125,7 @@
             0.5,
             0.5,
             0.5,
-            18.0
+            20.0
         ],
         "ubx": [
             80
@@ -381,7 +381,7 @@
     "name": "Drone_ode_complete",
     "p_global_values": [],
     "parameter_values": [
-        18
+        20
     ],
     "problem_class": "OCP",
     "ros_opts": null,

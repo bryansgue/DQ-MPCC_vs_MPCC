@@ -30,7 +30,7 @@ S_MAX = S_MAX_MANUAL if S_MAX_MANUAL is not None else 80
 # ═════════════════════════════════════════════════════════════════════════════
 
 # Maximum virtual progress speeds to test [m/s]
-VELOCITIES = [4, 6, 8, 10, 12, 15, 16, 18]
+VELOCITIES = [4, 6, 8, 10, 12, 14, 16, 18, 20]
 
 # Number of Monte Carlo runs per speed per controller
 # ── Quick test: 2 runs.  Final experiment: set to 50 ──
