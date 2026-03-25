@@ -32,8 +32,6 @@ from utils.graficas import (
     plot_velocity_analysis,
 )
 from utils.numpy_utils import (
-    build_arc_length_parameterisation,
-    build_waypoints,
     compute_curvature,
     euler_to_quaternion,
     mpcc_errors,
@@ -59,9 +57,9 @@ from MPCC_baseline_rates.config.experiment_config import (
     VTHETA_MAX,
     W_MAX,
     W0,
-    trayectoria,
 )
 from MPCC_baseline_rates.ocp.mpcc_controller_rate import build_mpcc_rate_solver
+from MPCC_baseline_rates.path_loader import load_path
 
 
 def main():
@@ -80,18 +78,12 @@ def main():
     t = np.arange(0, T_FINAL + t_s, t_s)
     N_sim = t.shape[0] - N_prediction
 
-    xd, yd, zd, xd_p, yd_p, zd_p = trayectoria()
-    t_finer = np.linspace(0.0, T_FINAL, len(t))
-    arc_lengths, pos_ref, position_by_arc_length, tangent_by_arc_length, s_max_full = (
-        build_arc_length_parameterisation(xd, yd, zd, xd_p, yd_p, zd_p, t_finer)
-    )
-
-    if S_MAX_MANUAL is not None and S_MAX_MANUAL < s_max_full:
-        s_max = float(S_MAX_MANUAL)
-        print(f"[ARC]  Total arc length = {s_max_full:.3f} m  ->  LIMITED to {s_max:.3f} m")
-    else:
-        s_max = s_max_full
-        print(f"[ARC]  Total arc length = {s_max:.3f} m")
+    # ── Arc-length parameterisation (load from cache or build) ────────────
+    (s_wp, pos_wp, tang_wp, quat_wp,
+     s_max_full, s_max_solver, s_max,
+     arc_lengths, pos_ref,
+     position_by_arc_length, tangent_by_arc_length) = load_path()
+    print(f"[ARC]  s_max = {s_max:.3f} m  |  s_max_full = {s_max_full:.3f} m")
 
     delta_t = np.zeros((1, N_sim), dtype=np.double)
     e_contorno = np.zeros((3, N_sim), dtype=np.double)
@@ -119,34 +111,23 @@ def main():
     theta_history[0, 0] = THETA0
     print(f"[IC]  p0 = {P0}  |  q0 = {np.round(q0_normed, 4)}  |  theta0 = {THETA0}")
 
-    xd_p_vals = xd_p(t)
-    yd_p_vals = yd_p(t)
-    psid = np.arctan2(yd_p_vals, xd_p_vals)
-    quatd = np.zeros((4, t.shape[0]), dtype=np.double)
-    for i in range(t.shape[0]):
-        quatd[:, i] = euler_to_quaternion(0.0, 0.0, psid[i])
-
+    # Reference for plotting (arc-length dense array, truncated to N_sim+1)
     dp_ds = np.gradient(pos_ref, arc_lengths, axis=1)
-    xref = np.zeros((17, t.shape[0]), dtype=np.double)
-    xref[0:3, :] = pos_ref
-    xref[3:6, :] = dp_ds
-    xref[6:10, :] = quatd
+    norms = np.linalg.norm(dp_ds, axis=0, keepdims=True)
+    norms[norms < 1e-8] = 1.0
+    dp_ds /= norms
+    _n_ref = min(pos_ref.shape[1], N_sim + 1)
+    xref = np.zeros((17, _n_ref))
+    xref[0:3, :] = pos_ref[:, :_n_ref]
+    xref[3:6, :] = dp_ds[:, :_n_ref]
 
     u_control = np.zeros((5, N_sim), dtype=np.double)
 
-    s_max_solver = min(s_max * 1.2, s_max_full)
-    s_wp, pos_wp, tang_wp, quat_wp = build_waypoints(
-        s_max_solver,
-        N_WAYPOINTS,
-        position_by_arc_length,
-        tangent_by_arc_length,
-        euler_to_quat_fn=euler_to_quaternion,
-    )
-    gamma_pos = create_casadi_position_interpolator(s_wp, pos_wp)
-    gamma_vel = create_casadi_tangent_interpolator(s_wp, tang_wp)
+    gamma_pos  = create_casadi_position_interpolator(s_wp, pos_wp)
+    gamma_vel  = create_casadi_tangent_interpolator(s_wp, tang_wp)
     gamma_quat = create_casadi_quat_interpolator(s_wp, quat_wp)
     print(
-        f"[INTERP] Created CasADi interpolation with {N_WAYPOINTS} waypoints "
+        f"[INTERP] CasADi interpolation with {len(s_wp)} waypoints "
         f"(s_max_solver={s_max_solver:.2f})"
     )
     print(

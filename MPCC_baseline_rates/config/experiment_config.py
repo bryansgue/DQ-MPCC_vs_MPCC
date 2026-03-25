@@ -3,7 +3,7 @@
 import numpy as np
 
 
-TRAJ_VALUE = 10    # frequency scaling factor
+TRAJ_VALUE = 15    # frequency scaling factor
 
 def trayectoria():
     """Return 6 lambdas: (xd, yd, zd, xdp, ydp, zdp).
@@ -15,10 +15,10 @@ def trayectoria():
     Relación freq X:Y = 1:2 → forma de 8 en plano XY
     """
     v = TRAJ_VALUE
-    xd  = lambda t: 3.0 * np.sin(v * 0.04 * t) + 2.5
+    xd  = lambda t: 2.50 * np.sin(v * 0.04 * t) + 2.5
     yd  = lambda t: 1.5 * np.sin(v * 0.08 * t)
     zd  = lambda t: 0.5 * np.sin(v * 0.04 * t) + 1.2
-    xdp = lambda t: 3.0 * v * 0.04 * np.cos(v * 0.04 * t)
+    xdp = lambda t: 2.5 * v * 0.04 * np.cos(v * 0.04 * t)
     ydp = lambda t: 1.5 * v * 0.08 * np.cos(v * 0.08 * t)
     zdp = lambda t: 0.5 * v * 0.04 * np.cos(v * 0.04 * t)
     return xd, yd, zd, xdp, ydp, zdp
@@ -39,11 +39,14 @@ THETA0 = 0.0
 
 
 # Timing
-T_FINAL = 60.0
+T_FINAL = 60          # upper-bound simulation duration [s] — loop exits early when θ >= S_MAX
+T_TRAJ_BUILD = 80     # time used ONLY to build arc-length parameterisation [s]
+                       # must satisfy: arc_length(T_TRAJ_BUILD) >= S_MAX_MANUAL * 1.2
+                       # TRAJ_VALUE=15 → avg speed ~1.67 m/s → 80s → ~134m > 120m ✓
 FREC = 100
-T_PREDICTION = 0.5
-N_WAYPOINTS = 30
-S_MAX_MANUAL = 80.0
+T_PREDICTION = 0.2
+N_WAYPOINTS = 30      # waypoints for CasADi interpolation (accuracy vs compile time)
+S_MAX_MANUAL = 100.0   # target path length [m] — drone stops when θ reaches this
 
 
 # Limits
@@ -54,11 +57,12 @@ T_MIN = 0.0
 T_MAX = 3.0 * G
 W_MAX = 3.0
 VTHETA_MIN = 0.0
-VTHETA_MAX = 15
+VTHETA_MAX = 20
 
 
 # Physical parameters
 MASS = 1.0
+MASS_MUJOCO = 1.08
 TAU_RC = 0.03
 
 
@@ -70,7 +74,7 @@ MPCC_Q_EC = [45.0, 45.0, 55.0]
 MPCC_Q_EL = [18.0, 18.0, 22.0]
 MPCC_Q_Q = [3.0, 3.0, 1.5]
 MPCC_Q_OMEGA = [0.12, 0.12, 0.08]
-MPCC_Q_S = 0.35
+MPCC_Q_S = 0.5
 
 # Dedicated rate-control effort weights.
 # Keep rates relatively cheap so the optimiser can actually steer the vehicle

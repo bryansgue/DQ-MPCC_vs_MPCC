@@ -666,7 +666,7 @@ void Drone_ode_mpcc_rate_mil_acados_setup_nlp_in(Drone_ode_mpcc_rate_mil_solver_
     double* lubx = calloc(2*NBX, sizeof(double));
     double* lbx = lubx;
     double* ubx = lubx + NBX;
-    ubx[0] = 70.27909594029009;
+    ubx[0] = 8.610154867811662;
 
     for (int i = 1; i < N; i++)
     {
