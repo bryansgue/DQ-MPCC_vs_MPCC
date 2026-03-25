@@ -27,3 +27,6 @@ Thumbs.db
 .vscode/
 *.swp
 *~
+
+# ── Nested repo backup ───────────────────────────────────────────────────────
+NMPC_baseline/.git_backup_nested_repo/
