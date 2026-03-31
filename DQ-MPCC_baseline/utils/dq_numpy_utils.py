@@ -304,17 +304,17 @@ def dq_normalize(dq):
 
 
 def rk4_step_dq_mpcc(x, u, ts, f_sys):
-    """RK4 integration for the 15-state DQ-MPCC model.
+    """RK4 integration for the augmented DQ-MPCC model.
 
-    State  x = [dq(8), twist(6), θ]  (15-dim)
-    Control u = [T, τx, τy, τz, v_θ]  (5-dim)
+    State  x = [dq(8), twist(6), θ, v_θ]  (16-dim)
+    Control u = [T, τx, τy, τz, a_θ]      (5-dim)
 
     Parameters
     ----------
-    x     : ndarray (15,)
+    x     : ndarray (16,)
     u     : ndarray (5,)
     ts    : float
-    f_sys : CasADi Function(x15, u5) → ẋ15
+    f_sys : CasADi Function(x16, u5) → ẋ16
     """
     k1 = np.array(f_sys(x, u)).flatten()
     k2 = np.array(f_sys(x + 0.5 * ts * k1, u)).flatten()
@@ -324,16 +324,16 @@ def rk4_step_dq_mpcc(x, u, ts, f_sys):
 
 
 def state15_to_standard13(x15):
-    """Convert 15-dim DQ-MPCC state to standard 13-dim state for plotting.
+    """Convert augmented DQ-MPCC state to standard 13-dim state for plotting.
 
-    DQ-MPCC state:  [dq(8), twist(6), θ]
+    DQ-MPCC state:  [dq(8), twist(6), θ, v_θ]
     Std state:      [px, py, pz, vx, vy, vz, qw, qx, qy, qz, wx, wy, wz]
 
     Body-frame linear velocity is rotated to the inertial frame.
 
     Parameters
     ----------
-    x15 : ndarray (15,)  – full DQ-MPCC state.
+    x15 : ndarray (15 or 16,)  – full DQ-MPCC state.
 
     Returns
     -------

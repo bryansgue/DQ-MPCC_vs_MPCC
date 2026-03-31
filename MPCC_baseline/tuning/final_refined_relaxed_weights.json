@@ -1,0 +1,45 @@
+{
+  "source": "mpcc_tuning_local_refresh + high_speed_release",
+  "selected_on": "2026-03-30",
+  "notes": [
+    "Derived from MPCC_baseline/tuning/final_refined_weights.json.",
+    "Keeps the refined tracking, attitude, and regularisation structure, but slightly increases Q_s to reduce the high-speed progress plateau observed in Experiment 2.",
+    "Used as the active MPCC sweep set for fairer high-speed evaluation without changing the DQ controller or the shared physical limits."
+  ],
+  "weights": {
+    "Q_ec": [
+      50.92689444397306,
+      24.217334854301466,
+      30.07110718743276
+    ],
+    "Q_el": [
+      3.6229850058362922,
+      4.099818572183272,
+      2.459532103085807
+    ],
+    "Q_q": [
+      1.0345976265944545,
+      0.517191636301155,
+      1.5130103971195739
+    ],
+    "U_mat": [
+      0.05,
+      70.0,
+      70.0,
+      70.0
+    ],
+    "Q_omega": [
+      0.02,
+      0.02,
+      0.1
+    ],
+    "Q_s": 10.420852571372007
+  },
+  "derived_from": {
+    "path": "MPCC_baseline/tuning/final_refined_weights.json",
+    "modified_keys": [
+      "Q_s"
+    ],
+    "previous_Q_s": 7.719150052868153
+  }
+}

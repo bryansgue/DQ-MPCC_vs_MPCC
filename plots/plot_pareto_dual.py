@@ -46,14 +46,18 @@ C_BASE = '#d62728'   # red
 
 _SCRIPT  = os.path.dirname(os.path.abspath(__file__))
 _ROOT    = os.path.dirname(_SCRIPT)
-_OUT_DIR = os.path.join(_ROOT, 'results', 'experiment2')
-os.makedirs(_OUT_DIR, exist_ok=True)
 
 sys.path.insert(0, _ROOT)
+from config.result_paths import experiment_dirs
 try:
     from config.sweep_config import VELOCITIES
 except ImportError:
     VELOCITIES = [8, 12, 15]
+
+_EXP2_DIRS = experiment_dirs("experiment2")
+_DATA_DIR = str(_EXP2_DIRS["data"])
+_FIG_DIR = str(_EXP2_DIRS["figures"])
+_LEGACY_DATA = os.path.join(_ROOT, 'results', 'experiment2', 'velocity_sweep_data.mat')
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -61,7 +65,9 @@ except ImportError:
 # ═════════════════════════════════════════════════════════════════════════════
 
 def load_sweep_data():
-    mat_path = os.path.join(_OUT_DIR, 'velocity_sweep_data.mat')
+    mat_path = os.path.join(_DATA_DIR, 'velocity_sweep_data.mat')
+    if not os.path.isfile(mat_path) and os.path.isfile(_LEGACY_DATA):
+        mat_path = _LEGACY_DATA
     if not os.path.isfile(mat_path):
         raise FileNotFoundError(f"Not found: {mat_path}")
     d = loadmat(mat_path)
@@ -297,7 +303,7 @@ def plot_pareto_dual(results, failures, save=True, show=True):
 
     if save:
         for ext in ('pdf', 'png'):
-            out = os.path.join(_OUT_DIR, f'fig_pareto_dual.{ext}')
+            out = os.path.join(_FIG_DIR, f'fig_pareto_dual.{ext}')
             fig.savefig(out, dpi=300, bbox_inches='tight')
         print('✓ fig_pareto_dual saved (pdf + png)')
 

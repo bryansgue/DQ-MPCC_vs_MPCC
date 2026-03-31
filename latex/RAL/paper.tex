@@ -1,0 +1,1764 @@
+\documentclass[lettersize,journal]{IEEEtran}
+\usepackage{amsmath,amsfonts}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{array}
+\usepackage[caption=false,font=normalsize,labelfont=sf,textfont=sf]{subfig}
+\usepackage{textcomp}
+\usepackage{stfloats}
+\usepackage{url}
+\usepackage{verbatim}
+\usepackage{graphicx}
+\usepackage{cite}
+\hyphenation{op-tical net-works semi-conduc-tor IEEE-Xplore}
+% updated with editorial comments 8/9/2021
+
+% ═══════════════════════ PACKAGES ═══════════════════════
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{cite}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{color}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{subcaption}
+\usepackage{siunitx}
+\usepackage{tikz}
+\usepackage{stfloats}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+% ═══════════════════════ MATH COMMANDS ═══════════════════
+\newcommand{\dq}{\hat{\bm{q}}}           % dual quaternion
+\newcommand{\dqd}{\hat{\bm{q}}_d}        % desired dual quaternion
+\newcommand{\dqe}{\hat{\bm{q}}_e}        % error dual quaternion
+\newcommand{\se}{\mathfrak{se}(3)}        % Lie algebra se(3)
+\newcommand{\so}{\mathfrak{so}(3)}        % Lie algebra so(3)
+\newcommand{\SE}{SE(3)}                   % Special Euclidean group
+\newcommand{\SO}{SO(3)}                   % Special Orthogonal group
+\newcommand{\Spin}{\mathrm{Spin}(3)}      % Spin group
+\newcommand{\R}{\mathbb{R}}              % Real numbers
+\newcommand{\Hd}{\mathbb{H}_d}           % Dual quaternion space
+\newcommand{\norm}[1]{\left\| #1 \right\|}
+\DeclareMathOperator{\Log}{Log}
+\DeclareMathOperator{\Exp}{Exp}
+\DeclareMathOperator{\Ad}{Ad}
+\DeclareMathOperator{\ad}{ad}
+\DeclareMathOperator{\atan}{atan2}
+
+%% Required preamble macros:
+
+   \newcommand{\vect}[1]{\bm{#1}}
+   \newcommand{\mat}[1]{\mathbf{#1}}
+
+   \newcommand{\dt}{\Delta t}
+   \newcommand{\st}{\text{s.t.}}
+%% Required packages: amsmath, amssymb, bm, booktabs
+
+% ═══════════════════════════════════════════════════════════
+
+\begin{document}
+
+%\title{Dual Quaternion Model Predictive Contouring Control with Lie-Invariant Error for Quadrotors}
+
+\title{Lie-Invariant Dual Quaternion MPCC for Quadrotors}
+
+\author{Bryan~S.~Guevara,
+        Luis~F.~Simancas,
+        and~Tiago~Nascimento
+
+\thanks{Manuscript received January 14, 2025; revised March 3, 2025.}%
+\thanks{Bryan~S.~Guevara is with the Laboratório de Automação
+        e Sistemas de Robótica (LaSER), Universidade Federal da
+        Paraíba (UFPB), João Pessoa, PB 58051-900, Brazil.
+        {\tt\small bguevara@laser.ufpb.br}}%
+\thanks{Luis~F.~Simancas is with Instituto de Automática (INAUT),
+        Universidad Nacional de San Juan--CONICET, Argentina.
+        {\tt\small lsimancas@inaut.unsj.edu.ar}}%
+\thanks{Tiago~Nascimento is with the Laboratório de Automação
+        e Sistemas de Robótica (LaSER), Universidade Federal da
+        Paraíba (UFPB), João Pessoa, PB 58051-900, Brazil.
+        {\tt\small tiago@laser.ufpb.br}}%
+\thanks{This work has been supported by the Ministry of Science and Innovation of the Spanish Government through the research project PID2021-122685OBI00 and the grant PRE2019-088069 for the training of research PhD staff.}% <-this % stops a space
+
+}
+
+\markboth{IEEE Robotics and Automation Letters}%
+{Guevara \MakeLowercase{\textit{et al.}}:
+ Dual Quaternion MPCC with Lie-Invariant Error for Quadrotor}
+
+\IEEEpubid{0000--0000/00\$00.00~\copyright~2025 IEEE}
+
+\maketitle
+
+\begin{abstract}
+This paper presents a Model Predictive Contouring Control (MPCC)
+framework for quadrotor UAVs in which the path-following error is
+formulated directly on the Lie group $\SE$ using unit dual
+quaternions. Unlike conventional MPCC approaches that decompose
+position and orientation errors independently in Euclidean space,
+the proposed method computes lag and contouring error components
+through the logarithmic map of the dual quaternion error, yielding
+a geometrically consistent, singularity-free decomposition in the
+Lie algebra $\se$. The translational error is corrected via the
+left Jacobian of $\SO$ to account for the rotation-translation
+coupling intrinsic to $\se$, and projected onto the trajectory
+tangent to separate lag and contouring terms under the
+$\mathrm{Ad}$-invariant metric. The arc-length progress is
+embedded as a system state and augmented with second-order virtual
+progress dynamics, enabling the solver to jointly optimize the
+physical control inputs and the progress acceleration within a
+single nonlinear program. This preserves a torque-driven quadrotor
+model while avoiding unrealistically abrupt changes in the virtual
+traversal speed. The resulting OCP is
+solved in real time via Sequential Quadratic Programming with
+Real-Time Iteration (SQP-RTI) using the ACADOS framework. In
+Model-in-the-Loop simulations over an \SI{80}{\meter} 3D Lissajous
+trajectory, the proposed DQ-MPCC consistently reduces contouring and
+orientation error relative to a Euclidean MPCC baseline, while exposing
+a clear trade-off in lag error that is analyzed explicitly. These
+results support the proposed formulation as a geometrically consistent
+alternative when rigid-body pose accuracy is prioritized together with
+real-time feasibility.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Model Predictive Contouring Control, Lie Groups, Dual Quaternions, Quadrotor UAV, $\SE$, Nonlinear MPC, Arc-Length Parametrization.
+\end{IEEEkeywords}
+
+%\IEEEpubidadjcol
+\section{Introduction}
+\IEEEPARstart{H}{igh-speed} autonomous flight requires controllers that
+simultaneously maximize traversal speed and maintain precise spatial
+accuracy along a prescribed path, a regime that is well known to demand
+large attitude excursions and strongly coupled translational--rotational
+motion in quadrotor systems~\cite{lee2010geometric,mellinger2011minimum}. Model Predictive Contouring Control
+(MPCC)~\cite{liniger2015optimization} addresses this challenge by
+decoupling \emph{spatial} tracking accuracy from \emph{temporal}
+progress: rather than enforcing a fixed time schedule, the controller
+treats the arc-length progress as an additional optimization variable,
+enabling autonomous speed modulation—accelerating on straight segments
+and decelerating in high-curvature regions. Since its introduction in
+autonomous racing~\cite{liniger2015optimization}, MPCC has been
+extended to quadrotor flight~\cite{romero2022model}, ground
+vehicles~\cite{kabzan2019amz}, and multi-agent
+systems, demonstrating consistent advantages over time-parametrized MPC
+in agile, constraint-aware motion.
+
+Despite these advances, virtually all existing MPCC formulations
+decompose the path-following error in Euclidean space $\R^3$, relying
+on Euler angles or rotation matrices to handle the orientational
+degrees of freedom~\cite{romero2022model, kabzan2019amz}. These
+representations carry well-documented drawbacks. Euler angles suffer
+from gimbal lock and exhibit discontinuities at $\pm\pi$ that corrupt
+gradient information inside the nonlinear program. Rotation matrices
+require six orthonormality constraints, inflating the problem size and
+complicating sensitivity analysis. More fundamentally, treating
+position and orientation as independent quantities discards the
+coupled rigid-body structure of $\SE$: any error metric defined
+separately on $\R^3 \times SO(3)$ fails to capture the interaction
+between rotational and translational motion that is intrinsic to
+the Special Euclidean group.
+
+Unit dual quaternions offer a principled remedy. A unit dual
+quaternion $\dq \in \Hd$ encodes a full $\SE$ pose in a unified
+8-dimensional algebra subject to only two scalar
+constraints~\cite{wang2012, kenwright2012dual}, compared to twelve
+for homogeneous matrices. Beyond compactness, dual quaternions inherit
+the Lie group structure of $\SE$: the exponential and logarithmic maps
+are closed-form, the error between two poses is a well-defined element
+of the Lie algebra $\se$, and the associated $\mathrm{Ad}$-invariant
+metric provides a geometrically consistent notion of distance on the
+manifold. Control designs based on these properties have demonstrated
+singularity-free tracking of coupled rotational-translational
+motion~\cite{wang2012,abaunza2017,johansen2019review}, yet no prior work has
+exploited them within an MPCC framework for path-following speed
+optimization.
+
+\IEEEpubidadjcol
+
+This paper closes that gap. We present a Lie-invariant MPCC framework
+for quadrotor UAVs in which the lag and contouring error components
+are computed directly in $\se$ via the logarithmic map of the dual
+quaternion pose error. The arc-length progress is embedded as a system
+state and augmented with second-order virtual-progress dynamics
+\(
+\dot{s} = v_s,\;
+\dot{v}_s = a_s
+\),
+allowing the solver to jointly optimize physical control inputs and the
+progress acceleration within a single nonlinear program. This choice is
+inspired by the progress regularisation strategy in~\cite{romero2022model},
+but adapted here to a torque-driven MPCC formulation so that the baseline
+actuation structure is preserved. The resulting optimal control problem is
+solved in real time using Sequential Quadratic Programming with
+Real-Time Iteration (SQP-RTI) inside the ACADOS
+framework~\cite{verschueren2021acados}.
+
+The main contributions of this work are as follows:
+\begin{enumerate}
+    \item \textbf{Dual-quaternion MPCC on $\SE$:} To the best of our
+    knowledge, we present the first MPCC formulation for quadrotors
+    that operates directly on the Lie group $\SE$ using unit dual
+    quaternions, extending contouring control from Euclidean path
+    following to full rigid-body motion with coupled rotation and
+    translation.
+
+    \item \textbf{Lie-algebra lag-contouring decomposition:} We
+    introduce a geometrically consistent decomposition of the
+    path-following error in the Lie algebra $\se$. The pose error is
+    obtained from the dual quaternion logarithmic map; its
+    translational component is corrected via the left Jacobian of
+    $\SO$ and projected onto the trajectory tangent to yield
+    coordinate-invariant lag and contouring terms consistent with the
+    $\mathrm{Ad}$-invariant metric of $\se$.
+
+    \item \textbf{Second-order virtual-progress augmentation:} We
+    augment the MPCC progress variable with explicit second-order
+    dynamics, introducing a bounded progress acceleration as the
+    virtual optimization input. In contrast to actuator-level
+    formulations such as~\cite{romero2022model}, this preserves the
+    thrust--torque structure of the quadrotor model used in both the
+    Euclidean baseline and the proposed DQ-MPCC, while still enforcing
+    smooth and dynamically plausible progress evolution.
+
+    \item \textbf{Real-time validation:} We demonstrate real-time
+    feasibility at \SI{100}{\hertz} on an \SI{80}{\meter} 3D Lissajous
+    path using SQP-RTI, and show through MiL experiments that the
+    proposed formulation improves contouring and orientation accuracy
+    while preserving comparable traversal times with respect to the
+    Euclidean baseline.
+\end{enumerate}
+
+The remainder of the paper is organized as follows.
+Section~\ref{sec:prelim} reviews dual quaternion algebra and the
+relevant Lie group structure. Section~\ref{sec:dynamics} derives the
+UAV dynamics in dual quaternion form. Section~\ref{sec:mpcc} presents the Lie-invariant MPCC
+formulation. Section~\ref{sec:impl} details the implementation and
+solver configuration. Section~\ref{sec:results} reports simulation
+results, and Section~\ref{sec:conclusion} concludes with directions
+for future work.
+% ═══════════════════════ II. PRELIMINARIES ══════════════════
+\section{Mathematical Preliminaries}
+\label{sec:prelim}
+
+
+
+\subsection{Dual Quaternion Algebra}
+
+A dual number is an expression $a + \varepsilon b$, where $a, b \in \mathbb{R}$
+and the dual unit $\varepsilon$ satisfies $\varepsilon^{2} = 0$,
+$\varepsilon \neq 0$. Extending this to the quaternion algebra
+$\mathbb{H}$, a \emph{dual quaternion} is
+\begin{equation}
+    \dq = q_r + \varepsilon\, q_d, \qquad q_r,\, q_d \in \mathbb{H},
+\end{equation}
+where $q_r$ is the \emph{real part} and $q_d$ is the \emph{dual part}.
+This representation is standard in rigid-body kinematics and provides a
+compact pose parametrization that remains closed under composition and
+inversion~\cite{daniilidis1999,selig2005}.
+The product of two dual quaternions follows from the Hamilton product
+$\otimes$ applied to both parts:
+\begin{equation}
+    \dq_1 \otimes \dq_2
+        = q_{r_1} \otimes q_{r_2}
+        + \varepsilon\!\left(
+            q_{r_1} \otimes q_{d_2} + q_{d_1} \otimes q_{r_2}
+          \right).
+    \label{eq:dq_product}
+\end{equation}
+
+A dual quaternion represents a rigid-body pose in $\SE$ when it
+satisfies the \emph{unit constraints}
+\begin{equation}
+    \|q_r\| = 1, \qquad \langle q_r,\, q_d \rangle = 0,
+    \label{eq:unit_constraints}
+\end{equation}
+where $\langle\cdot,\cdot\rangle$ denotes the scalar (dot) product of
+two quaternions treated as vectors in $\mathbb{R}^{4}$.
+These conditions characterize the unit dual quaternions associated with
+rigid motions and ensure consistency with the geometry of $\SE$~\cite{selig2005}.
+Given a rotation parametrized by angle $\theta$ about unit axis
+$\hat{\bm{n}} \in \mathbb{R}^{3}$ and a translation
+$\bm{t} \in \mathbb{R}^{3}$, the corresponding unit dual quaternion is
+\begin{equation}
+    \dq = q_r + \frac{\varepsilon}{2}\, q_t \otimes q_r,
+    \qquad
+    q_r = \begin{bmatrix}\cos\tfrac{\theta}{2}\\[2pt]
+                          \hat{\bm{n}}\sin\tfrac{\theta}{2}\end{bmatrix},
+    \quad
+    q_t = \begin{bmatrix}0\\ \bm{t}\end{bmatrix}.
+    \label{eq:dq_pose}
+\end{equation}
+The conjugate of a unit dual quaternion is
+$\dq^{*} = q_r^{*} + \varepsilon\, q_d^{*}$, and the inverse equals
+the conjugate, $\dq^{-1} = \dq^{*}$, by virtue of the unit
+constraint~\eqref{eq:unit_constraints}. The translation and rotation
+are recovered from any unit dual quaternion as
+\begin{equation}
+    \bm{t} = 2\,\bigl(q_d \otimes q_r^{*}\bigr)\big|_{\mathrm{vec}},
+    \qquad
+    R = R(q_r) \in SO(3),
+    \label{eq:dq_extract}
+\end{equation}
+where $(\cdot)|_{\mathrm{vec}}$ denotes the vector part of a quaternion.
+
+
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{DQ-MPCC.png}
+    \caption{
+Geometric interpretation of the Lie-invariant lag--contouring
+decomposition on $\SE$.
+The desired trajectory $\bm{\gamma}(s)$ defines a curve on $\SE$,
+parameterized by the arc length $s$.
+At time step $k$, the reference and current poses are denoted by
+$q_k^d$ and $q_k$, respectively, with relative error
+$q^e = q_k^{d*}\otimes q_k \in \SE$.
+Applying the logarithmic map yields the Lie-algebra error
+$\bm{\xi}^e=(\bm{\phi}^e,\bm{\rho})\in\mathfrak{se}(3)$ in the tangent
+space at $q_k^d$.
+Here, $\bm{\phi}^e\in\mathfrak{so}(3)$ is the rotational error, whereas
+$\bm{\rho}\in\mathbb{R}^3$ is the translational component of the
+logarithmic pose error, and thus is not the Euclidean position
+difference, since it is coupled to the relative orientation.
+Using the unit path tangent $\vect{e}_t^d(s)=d\bm{p}^d/ds$,
+$\bm{\rho}$ is decomposed into a lag component
+$\bm{\rho}_{\mathrm{lag}}$, aligned with the path, and a contouring
+component $\bm{\rho}_{\mathrm{cont}}$, orthogonal to it.
+This yields a geometrically consistent separation of longitudinal and
+lateral path-following errors in $\mathfrak{se}(3)$.
+    }
+    \label{fig:lie_decomposition}
+\end{figure}
+
+\subsection{Lie Group Structure and Logarithmic Map}
+
+The set of unit dual quaternions satisfying~\eqref{eq:unit_constraints}
+forms the group $\mathrm{Spin}(3) \ltimes \mathbb{R}^{3}$, the double
+cover of $\SE$: every rigid-body pose corresponds to exactly two
+antipodal unit dual quaternions $\pm\dq$~\cite{kenwright2012dual,selig2005}.
+Its Lie algebra $\se$ consists of six-dimensional vectors
+\begin{equation}
+    \bm{\xi} = \begin{pmatrix}\bm{\phi}\\ \bm{\rho}\end{pmatrix} \in \mathbb{R}^{6},
+\end{equation}
+where $\bm{\phi} \in \mathbb{R}^{3}$ is the rotation vector and
+$\bm{\rho} \in \mathbb{R}^{3}$ is the coupled translational component.
+
+The \textbf{logarithmic map} $\Log: \Hd \to \se$ proceeds in two steps.
+First, the rotation angle and axis are extracted from the real part $q_r$:
+\begin{equation}
+    \theta = 2\operatorname{atan2}\!\bigl(\|q_{r,\mathrm{vec}}\|,\;q_{r,0}\bigr),
+    \qquad
+    \hat{\bm{n}} = \frac{q_{r,\mathrm{vec}}}{\|q_{r,\mathrm{vec}}\|},
+    \label{eq:log_rotation}
+\end{equation}
+and the translation $\bm{t}$ is recovered via~\eqref{eq:dq_extract}.
+Then the Lie algebra element is
+\begin{equation}
+    \Log(\dq)
+    = \begin{pmatrix}\bm{\phi}\\ \bm{\rho}\end{pmatrix}
+    = \begin{pmatrix}\theta\,\hat{\bm{n}} \\[3pt] \bm{t}\end{pmatrix}.
+    \label{eq:log_map}
+\end{equation}
+Throughout the paper, quantities associated with the desired
+(reference) pose carry a superscript $d$: $\dq^{d}$, $q_r^{d}$,
+$\bm{p}^{d}$, $R^{d}$, etc.
+Hemisphere consistency is enforced by
+\begin{equation}
+    q_r \;\leftarrow\; \mathrm{sign}(q_{r,0})\,q_r
+    \label{eq:hemisphere}
+\end{equation}
+before evaluating~\eqref{eq:log_rotation}--\eqref{eq:log_map}.
+These logarithmic coordinates follow the standard Lie-theoretic local
+representation used in robotics, where Jacobian corrections map finite
+group displacements to tangent perturbations~\cite{sola2018micro,barfoot2017}.
+
+
+
+
+\section{Dual Quaternion Dynamics of the Quadrotor}
+\label{sec:dynamics}
+
+\subsection{Classical Quadrotor Model}
+
+Consider a quadrotor of mass $m$ and inertia matrix
+$\mat{J} \in \mathbb{R}^{3\times 3}$. Let
+$\vect{p} \in \mathbb{R}^{3}$ denote the position in the inertial
+frame, $q_r \in \mathbb{S}^{3}$ the unit attitude quaternion,
+$\vect{v} \in \mathbb{R}^{3}$ the translational velocity in the
+inertial frame, and $\vect{\omega} \in \mathbb{R}^{3}$ the angular
+velocity in the body frame. The equations of motion are:
+\begin{align}
+    \dot{\vect{p}}      &= \vect{v}, \label{eq:uav_p}\\
+    \dot{q}_r           &= \tfrac{1}{2}\, q_r \otimes \vect{\omega},
+                                                  \label{eq:uav_q}\\
+    \dot{\vect{v}}      &= \frac{f}{m}\, R(q_r)\,\vect{e}_3 + \vect{g},
+                                                  \label{eq:uav_v}\\
+    \dot{\vect{\omega}} &= \mat{J}^{-1}\!\bigl(
+                            \vect{\tau} - \vect{\omega}
+                            \times (\mat{J}\vect{\omega})
+                          \bigr),                \label{eq:uav_w}
+\end{align}
+where $f \in \mathbb{R}$ is the total thrust,
+$\vect{\tau} \in \mathbb{R}^{3}$ is the control torque vector,
+$\vect{e}_3 = [0,0,1]^\top$ is the body-frame thrust direction,
+and $\vect{g} = [0,0,-g]^\top$\,m/s$^2$ is the gravitational
+acceleration in the inertial frame.
+
+\subsection{Dual Quaternion State Representation}
+
+The separate kinematics~\eqref{eq:uav_p}--\eqref{eq:uav_q} are
+unified into a single pose equation by assembling the unit dual
+quaternion~\eqref{eq:dq_pose}:
+\begin{equation}
+    \dq = q_r + \varepsilon\, q_d,
+    \label{eq:dq_parts}
+\end{equation}
+where $q_r \in \mathbb{R}^{4}$ is the real part encoding the
+attitude and $q_d \in \mathbb{R}^{4}$ is the dual part encoding the
+translation coupled with the rotation, defined as
+\begin{equation}
+    q_d \;\triangleq\; \tfrac{1}{2}\,q_t \otimes q_r,
+    \qquad \text{with} \qquad q_t = [0,\;\vect{p}^\top]^\top.
+    \label{eq:qd_def}
+\end{equation}
+
+The angular and linear velocities are packed into the
+\emph{dual twist}, a pure dual quaternion
+\begin{equation}
+    \hat{\vect{\omega}} = \vect{\omega} + \varepsilon\,\vect{v}_b,
+    \label{eq:dual_twist}
+\end{equation}
+where
+\begin{equation}
+    \vect{v}_b \;\triangleq\;
+    q_r^{*} \otimes \vect{v} \otimes q_r
+    \;=\; \mathrm{Ad}_{q_r^{*}}(\vect{v})
+    \label{eq:vb_def}
+\end{equation}
+is the translational velocity rotated from the inertial frame into
+the body frame via the adjoint action.
+Because $\hat{\vect{\omega}}$ is pure (both scalar parts vanish),
+it carries exactly six independent degrees of freedom collected in
+$\vect{\xi} = [\vect{\omega}^\top,\;\vect{v}_b^\top]^\top
+\in \mathbb{R}^{6}$.
+
+With these definitions the pose kinematics reduce to
+\begin{equation}
+    \dot{\dq} = \tfrac{1}{2}\,\dq \otimes \hat{\vect{\omega}},
+    \label{eq:dq_kinematics}
+\end{equation}
+and the dual twist dynamics decompose as
+\begin{equation}
+    \dot{\hat{\vect{\omega}}} = \hat{\vect{f}} + \hat{\vect{u}},
+    \label{eq:dual_twist_dyn}
+\end{equation}
+where the drift and control dual quaternions are, respectively,
+\begin{align}
+    \hat{\vect{f}} &=
+        -\mat{J}^{-1}\!\bigl(\vect{\omega}\times(\mat{J}\vect{\omega})\bigr)
+        + \varepsilon\!\left(
+            \vect{v}_b\times\vect{\omega}
+            + \mathrm{Ad}_{q_r^{*}}(\vect{g})
+          \right),  \label{eq:f_drift}\\[4pt]
+    \hat{\vect{u}} &=
+        \mat{J}^{-1}\vect{\tau}
+        + \varepsilon\!\left(\frac{f}{m}\,\vect{e}_3\right).
+    \label{eq:u_control}
+\end{align}
+
+
+
+\subsection{Compact State Equation}
+
+Collecting the pose $\dq = q_r + \varepsilon\, q_d$ and the dual
+twist $\hat{\vect{\omega}} = \vect{\omega} + \varepsilon\,\vect{v}_b$
+into a single state, the complete UAV dynamics in dual quaternion
+form are:
+\begin{equation}
+\boxed{
+\frac{d}{dt}
+\begin{bmatrix} \dq \\ \hat{\vect{\omega}} \end{bmatrix}
+=
+\begin{bmatrix}
+    \tfrac{1}{2}\,\dq \otimes \hat{\vect{\omega}} \\[4pt]
+    \hat{\vect{f}} + \hat{\vect{u}}
+\end{bmatrix}.
+}
+\label{eq:dynamics}
+\end{equation}
+This compact form follows the usual Lie-group treatment of rigid-body
+kinematics and dynamics, where pose evolution is written directly on the
+motion group instead of splitting translation and attitude into unrelated
+coordinate charts~\cite{park1995,murray1994mathematical}.
+
+For numerical implementation, $\dq = q_r + \varepsilon\,q_d$ is
+stored as its eight scalar components and
+$\hat{\vect{\omega}} = \vect{\omega} + \varepsilon\,\vect{v}_b$
+as its six vector components $\vect{\xi}$, yielding the state vector
+\begin{equation}
+    \vect{x} =
+    \bigl[\,
+        \underbrace{q_r \in \mathbb{R}^4}_{\text{attitude}},\;
+        \underbrace{q_{d} \in \mathbb{R}^4}_{\text{dual part}},\;
+        \underbrace{\vect{\omega} \in \mathbb{R}^3}_{\text{ang.\ vel.}},\;
+        \underbrace{\vect{v}_b \in \mathbb{R}^3}_{\text{body lin.\ vel.}}
+    \,\bigr]^\top \in \mathbb{R}^{14},
+    \label{eq:state_vector}
+\end{equation}
+and the control input
+$\vect{u} = [f,\;\tau_1,\;\tau_2,\;\tau_3]^\top \in \mathbb{R}^{4}$.
+The unit-norm constraint $\|q_r\| = 1$ is maintained via a
+Baumgarte-type correction $K(1-\|q_r\|)\,q_r$ with $K=10$ added
+to $\dot{q}_r$ inside the integrator, supplemented by a soft
+penalty constraint in the OCP formulation. This is a classical
+constraint-stabilization device used here only to keep the numerical
+integration close to the unit-quaternion manifold~\cite{baumgarte1972}.
+
+
+\subsection{Reference Trajectory and Arc-Length Parametrization}
+\label{sec:ref_traj}
+
+MPCC requires a \emph{spatial} reference indexed by distance along
+the path rather than reference path by time $\vect{p}^d(t)$, so that the optimizer can freely
+choose how fast to traverse each segment. The arc length is
+\begin{equation}
+    s(t) = \int_0^t \bigl\|\dot{\vect{p}}^d(\tau)\bigr\|\,d\tau,
+    \label{eq:arc_length}
+\end{equation}
+and the inverse $t(s)$ is recovered by cubic spline interpolation.
+The reference pose at station $s$ is
+\begin{equation}
+    \bm{\gamma}(s)
+        = \bigl(\vect{p}^d(s),\; q_r^d(s)\bigr) \in \SE,
+    \label{eq:gamma}
+\end{equation}
+where the desired attitude $q_r^d(s)$ is constructed from the path
+geometry. First, the unit tangent
+\begin{equation}
+    \vect{t}^d(s)
+    = \frac{d\vect{p}^d/ds}{\|d\vect{p}^d/ds\|}
+    \label{eq:heading_tangent}
+\end{equation}
+defines the desired heading direction. Next, the path curvature vector
+is approximated by
+\begin{equation}
+    \vect{\kappa}^d(s) = \frac{d\vect{t}^d}{ds},
+    \label{eq:curvature_vector}
+\end{equation}
+and combined with a nominal reference speed $\bar{v}_s$ to form the
+feedforward lateral acceleration
+\begin{equation}
+    \vect{a}_{\mathrm{lat}}^d(s) = \bar{v}_s^2\,\vect{\kappa}^d(s).
+    \label{eq:lateral_acc_ref}
+\end{equation}
+The desired thrust direction is then chosen as
+\begin{equation}
+    \vect{b}_3^d(s)
+    = \frac{\vect{a}_{\mathrm{lat}}^d(s) + g\,\vect{e}_3}
+           {\|\vect{a}_{\mathrm{lat}}^d(s) + g\,\vect{e}_3\|},
+    \label{eq:b3_des}
+\end{equation}
+which is clipped to a maximum admissible tilt angle in order to keep
+the reference physically realizable. The desired body x-axis is the
+projection of the tangent onto the plane orthogonal to $\vect{b}_3^d$,
+\begin{equation}
+    \vect{b}_1^d(s)
+    = \frac{
+        \left(\bm{I}_3 - \vect{b}_3^d{\vect{b}_3^d}^{\!\top}\right)\vect{t}^d(s)
+      }{
+        \left\|
+        \left(\bm{I}_3 - \vect{b}_3^d{\vect{b}_3^d}^{\!\top}\right)\vect{t}^d(s)
+        \right\|
+      },
+    \label{eq:b1_des}
+\end{equation}
+with $\vect{b}_2^d(s)=\vect{b}_3^d(s)\times\vect{b}_1^d(s)$. The
+reference rotation matrix is finally assembled as
+\begin{equation}
+    R^d(s) = \begin{bmatrix}\vect{b}_1^d(s) & \vect{b}_2^d(s) & \vect{b}_3^d(s)\end{bmatrix}
+    \in SO(3),
+    \label{eq:Rd}
+\end{equation}
+and mapped to the quaternion $q_r^d(s)$. Unlike a yaw-only reference,
+this construction makes the orientation reference compatible with the
+centripetal acceleration required for fast path following.
+
+
+% ═══════════════════════ III. PROBLEM FORMULATION ══════════
+
+\section{Lie-Invariant MPCC Formulation}
+\label{sec:mpcc}
+
+Classical MPCC decomposes the path-following error in Euclidean space
+using the Frenet--Serret frame~\cite{liniger2015optimization}, thereby
+treating position and orientation separately and disregarding the
+underlying manifold structure of $\SE$. In contrast, the proposed
+formulation performs the decomposition directly in $\se$ through the
+logarithmic map of the dual-quaternion error, together with the
+left-Jacobian correction introduced in
+Section~\ref{sec:left_jac}.
+
+\subsection{Baseline MPCC}
+\label{sec:baseline}
+
+To assess the benefit of the proposed geometric formulation, the
+DQ-MPCC is benchmarked against a standard Euclidean MPCC baseline.
+Given the reference position $\vect{p}^d(s)$ and its unit tangent
+$\vect{t}(s)$, the position tracking error
+$\vect{e}_t = \vect{p}^d(s) - \vect{p}$ is decomposed into lag and
+contouring components as
+\begin{equation}
+    \vect{e}_\ell = \bigl(\vect{t}^\top \vect{e}_t\bigr)\,\vect{t},
+    \qquad
+    \vect{e}_c = \bigl(\bm{I}_3 - \vect{t}\,\vect{t}^\top\bigr)\,\vect{e}_t,
+\end{equation}
+while the attitude error is defined through the quaternion logarithm
+\begin{equation}
+    \bm{\eta} = \Log(q^{-1} \otimes q^d) \in \so,
+\end{equation}
+using the same curvature-compatible attitude reference
+$q^d(s)=q_r^d(s)$ introduced in~\eqref{eq:b3_des}--\eqref{eq:Rd}. This
+avoids penalizing a hover-like orientation while the position loop
+demands the tilt required for aggressive path following.
+
+Both controllers share the same solver configuration, prediction
+horizon, stage-cost structure~\eqref{eq:cost}, and physical
+constraints~\eqref{eq:ocp_thrust}--\eqref{eq:ocp_speed}. Hence, the
+only difference lies in the pose-error representation: the baseline
+uses a Euclidean decomposition in $\mathbb{R}^3$ with a separate
+quaternion attitude error, whereas the proposed DQ-MPCC employs the
+geometrically consistent logarithmic map on $\SE$, as detailed in
+Section~\ref{sec:mpcc}. In the baseline cost, $\bm{\eta}$ replaces
+$\bm{\phi}^e$ with the same quadratic penalty structure as
+in~\eqref{eq:cost}. Therefore, any observed performance difference can
+be attributed solely to the adopted error representation.
+
+
+
+
+
+
+
+\subsection{DQ-MPCC Formulation}
+
+Let $\dq^d(s) = \bm{\gamma}(s)$ denote the reference dual quaternion,
+evaluated at the current arc-length station $s$ --- the fifteenth
+component of the augmented state~\eqref{eq:aug_state}; the sixteenth
+component stores the virtual progress speed $v_s$. The pose error is
+defined as the left-invariant error on $\SE$:
+\begin{equation}
+    \dq^e = \dq^{d\,*}(s) \otimes \dq,
+    \label{eq:dq_error}
+\end{equation}
+which expresses the deviation of the current pose $\dq$ from the
+reference $\dq^d(s)$ in the body frame of the reference~\cite{bullo1995proportional}. After
+applying hemisphere correction~\eqref{eq:hemisphere}, the
+logarithmic map~\eqref{eq:log_map} yields the Lie algebra error
+\begin{equation}
+    \bm{\xi}^e = \Log\!\left(\dq^e\right)
+               = \begin{pmatrix} \bm{\phi}^e \\ \bm{\rho}^e
+                 \end{pmatrix} \in \se,
+    \label{eq:log_error}
+\end{equation}
+where $\bm{\phi}^e \in \mathbb{R}^3$ is the rotational error vector
+and $\bm{\rho}^e \in \mathbb{R}^3$ is the raw translational
+component. As detailed in Section~\ref{sec:left_jac}, $\bm{\rho}^e$
+encodes translation in a frame twisted by $\bm{\phi}^e$ through the
+screw structure of $\se$; the corrected translational error
+$\bm{\rho}$ is defined in~\eqref{eq:rho_corrected}.
+
+%\subsection{Left Jacobian of $\SO$ and Translational Correction}
+%\label{sec:left_jac}
+
+A key quantity linking Lie-algebra errors to Euclidean position errors
+is the \emph{left Jacobian} of $\SO$,
+$\bm{J}_{l}(\bm{\phi}) \in \mathbb{R}^{3\times 3}$~\cite{sola2018micro}:
+\begin{equation}
+    \bm{J}_{l}(\bm{\phi})
+    = \bm{I}_{3}
+      + \frac{1 - \cos\theta}{\theta^{2}}\,[\bm{\phi}]_{\times}
+      + \frac{\theta - \sin\theta}{\theta^{3}}\,
+        [\bm{\phi}]_{\times}^{2},
+    \label{eq:left_jacobian}
+\end{equation}
+where $\theta = \|\bm{\phi}\|$ and
+$[\bm{\phi}]_{\times}$ is the $3\times 3$ skew-symmetric matrix
+associated with $\bm{\phi}$.
+Its inverse admits the closed-form expression~\cite{sola2018micro}:
+\begin{equation}
+    \bm{J}_{l}(\bm{\phi})^{-1}
+    = \frac{\theta}{2}\cot\!\frac{\theta}{2}\;\bm{I}_{3}
+      \;-\;\frac{\theta}{2}\,[\hat{\bm{n}}]_{\times}
+      \;+\;\Bigl(1 - \frac{\theta}{2}\cot\!\frac{\theta}{2}\Bigr)
+            \,\hat{\bm{n}}\,\hat{\bm{n}}^{\top},
+    \label{eq:left_jacobian_inv}
+\end{equation}
+where $\hat{\bm{n}} = \bm{\phi}/\theta$ is the unit rotation axis.
+Using the analytical form~\eqref{eq:left_jacobian_inv} instead of a
+numerical matrix inversion avoids the heavier expression graph that
+\texttt{ca.inv} would introduce in the CasADi symbolic framework,
+yielding cleaner automatic differentiation and faster code generation
+within the acados solver.
+For $\theta < 10^{-7}$ both expressions reduce to
+$\bm{J}_{l} \to \bm{I}_{3}$ and
+$\bm{J}_{l}^{-1} \to \bm{I}_{3}$
+to avoid numerical singularity.
+
+To understand why this Jacobian is needed, recall that the
+translational component $\bm{\rho}^e$ returned by $\Log(\dq^e)$
+via~\eqref{eq:log_map} is \emph{not} the Euclidean displacement
+$\bm{p} - \bm{p}^{d}$. Rather, it is the translation expressed in
+a frame that has been \emph{twisted} by the rotation $\bm{\phi}^e$
+through the $\se$ screw structure~\cite{sola2018micro}. The
+corrected translational error is therefore defined as
+\begin{equation}
+    \bm{\rho} = \bm{J}_{l}(\bm{\phi}^e)^{-1}\, R^{d\,\top}
+                \bigl(\bm{p} - \bm{p}^{d}\bigr),
+    \label{eq:rho_corrected}
+\end{equation}
+where $R^{d} = R(q_r^{d}) \in SO(3)$ is the desired rotation matrix
+and $\bm{p} - \bm{p}^{d} \in \mathbb{R}^{3}$ is the position error
+in the inertial frame. Equation~\eqref{eq:rho_corrected} thus defines
+a vector in $\mathbb{R}^{3}$ that (i) is expressed in the desired
+body frame via $R^{d\,\top}$, and (ii) accounts for the
+rotation-translation coupling of $\se$ via $\bm{J}_{l}^{-1}$.
+
+
+%\subsection{Lag-Contouring Decomposition in $\se$}
+
+The corrected translational error $\bm{\rho}$~\eqref{eq:rho_corrected}
+is decomposed into components parallel and perpendicular to the
+instantaneous tangent direction of the reference trajectory. At
+arc-length station $s$, this tangent is
+\begin{equation}
+    \vect{e}^d_t(s)
+        = \frac{\vect{p}^{d\prime}(s)}{\|\vect{p}^{d\prime}(s)\|}, \qquad
+        \text{with} 
+    \qquad
+    \vect{p}^{d\prime}(s) = \frac{d\vect{p}^d}{ds},
+    \label{eq:tangent}
+\end{equation}
+where $\vect{p}^{d\prime}(s)$ is the derivative of the reference
+position with respect to arc length, available analytically from
+the CasADi interpolant of Section~\ref{sec:ref_traj}. Because the
+parametrization is by arc length, $\|\vect{p}^{d\prime}\| = 1$
+holds exactly along smooth segments, so~\eqref{eq:tangent} is
+well-defined everywhere except at cusps. The lag and contouring
+components are then
+\begin{subequations}
+\label{eq:lag_contour}
+\begin{align}
+    \bm{\rho}_\mathrm{lag}
+        &= \bigl(\vect{e}^d_t\,{\vect{e}^d_t}^{\!\top}\bigr)
+           \bm{\rho},
+    \label{eq:rho_lag}\\[2pt]
+    \bm{\rho}_\mathrm{cont}
+        &= \bigl(\bm{I}_3
+           - \vect{e}^d_t\,{\vect{e}^d_t}^{\!\top}\bigr)
+           \bm{\rho}.
+    \label{eq:rho_cont}
+\end{align}
+\end{subequations}
+The \emph{lag error} $\bm{\rho}_\mathrm{lag}$ measures how far the
+vehicle lags behind or leads the virtual reference point along the
+path; the \emph{contouring error} $\bm{\rho}_\mathrm{cont}$ measures
+lateral deviation from it.
+
+This decomposition is geometrically consistent with the $\SE$
+structure. Because $\bm{\rho}$ is obtained via the left Jacobian
+inverse~\eqref{eq:rho_corrected}, it resides in the translational
+subspace of $\se$ with rotation-translation coupling accounted for.
+Both $\bm{\rho}_\mathrm{lag}$ and $\bm{\rho}_\mathrm{cont}$ are
+orthogonal projections under the left-invariant metric
+\begin{equation}
+    \langle \bm{\xi}_1, \bm{\xi}_2 \rangle_{\se}
+        = \lambda\,\bm{\phi}_1^\top\bm{\phi}_2
+        + \mu\,\bm{\rho}_1^\top\bm{\rho}_2,
+    \qquad \lambda,\mu > 0,
+    \label{eq:se3_metric}
+\end{equation}
+which defines the weighted inner product adopted in this work on the
+tangent coordinates of $\se$~\cite{murray1994mathematical}. A purely Euclidean
+decomposition of $\vect{p} - \vect{p}^d$ would not respect this
+structure and would produce biased error signals whenever
+$\bm{\phi}^e \neq \vect{0}$.
+
+\subsection{Optimal Control Problem}
+
+To embed arc-length progress as a degree of freedom while preventing
+unrealistically abrupt changes in the virtual traversal speed, the
+dynamics~\eqref{eq:dynamics} are augmented with the progress state
+$s \in [0, s_{\max}]$, the virtual progress speed $v_s$, and the
+virtual progress acceleration input $a_s$:
+%
+\begin{equation}
+    \dot{s} = v_s,
+    \qquad
+    \dot{v}_s = a_s,
+    \label{eq:arc_dyn}
+\end{equation}
+%
+yielding the extended state vector
+%
+\begin{equation}
+    \vect{x}_{\mathrm{a}}
+    = \bigl[\,
+        \underbrace{\vect{x} \in \mathbb{R}^{14}}_{\text{UAV state}},\;
+        \underbrace{s \in \mathbb{R}}_{\text{arc length}},\;
+        \underbrace{v_s \in \mathbb{R}}_{\text{virtual speed}}
+    \,\bigr]^\top \in \mathbb{R}^{16},
+    \label{eq:aug_state}
+\end{equation}
+%
+and the augmented control vector
+%
+\begin{equation}
+    \vect{u}_{\mathrm{a}}
+    = \bigl[\,
+        \underbrace{\vect{u}^\top \in \mathbb{R}^{4}}_{\text{physical inputs}},\;
+        \underbrace{a_s \in \mathbb{R}}_{\text{virtual acceleration}}
+    \,\bigr]^\top \in \mathbb{R}^{5},
+    \label{eq:aug_control}
+\end{equation}
+%
+
+The stage cost at each prediction node is:
+\begin{equation}
+\begin{aligned}
+    \ell(\vect{x}_{\mathrm{a}}, \vect{u}_{\mathrm{a}})
+        &= {\bm{\xi}^e}^\top \bm{Q}_\phi\,\bm{\xi}^e
+         + \bm{\rho}_\mathrm{lag}^\top \bm{Q}_\ell\,\bm{\rho}_\mathrm{lag}
+         + \bm{\rho}_\mathrm{cont}^\top \bm{Q}_c\,\bm{\rho}_\mathrm{cont}
+           \\[4pt]
+        &\quad
+         + \vect{u}^\top \bm{W}_u\,\vect{u}
+         + \vect{\omega}^\top \bm{Q}_\omega\,\vect{\omega}
+         + Q_a\,a_s^2
+         - Q_s\,v_s .
+\end{aligned}
+\label{eq:cost}
+\end{equation}
+
+To avoid double-penalising translation, $\bm{Q}_\phi \in \mathbb{R}^{6\times 6}$
+is structured with upper block $\bm{Q}_q$ acting on the rotational
+component $\bm{\phi}^e$ of $\bm{\xi}^e$ and a zero lower block,
+since lateral and longitudinal errors are handled exclusively by
+$\bm{Q}_c$ and $\bm{Q}_\ell$. All tracking and regularisation weights
+$\bm{Q}_\ell,\,\bm{Q}_c,\,\bm{Q}_q,\,\bm{Q}_\omega \in \mathbb{R}^{3\times 3}$
+are diagonal, allowing independent penalisation per axis and
+accommodating the typical asymmetry between vertical and horizontal
+dynamics of a quadrotor. The control effort weight
+$\bm{W}_u
+\in \mathbb{R}^{4\times 4}$ penalises thrust and torques independently,
+and $Q_s > 0$ is a scalar speed incentive weight. Numerical values of
+all weights are reported in Table~\ref{tab:cost_weights}. The scalar
+$Q_a > 0$ regularises the virtual progress acceleration and is kept
+fixed in the implementation to isolate the effect of the main MPCC
+tracking weights during bilevel tuning.
+
+The terminal cost retains all error terms but omits control
+regularization:
+\begin{equation}
+    \ell_e(\vect{x}_{\mathrm{a}})
+        = {\bm{\xi}^e}^\top \bm{Q}_\phi\,\bm{\xi}^e
+        + \bm{\rho}_\mathrm{lag}^\top \bm{Q}_\ell\,\bm{\rho}_\mathrm{lag}
+        + \bm{\rho}_\mathrm{cont}^\top \bm{Q}_c\,\bm{\rho}_\mathrm{cont}
+        + \vect{\omega}^\top \bm{Q}_\omega\,\vect{\omega}.
+    \label{eq:terminal_cost}
+\end{equation}
+
+
+The complete OCP of DQ-MPCC over a prediction horizon of $N$ steps is:
+%
+\begin{subequations}
+\label{eq:ocp}
+\begin{align}
+    \underset{\vect{x}_{\mathrm{a},0:N},\,\vect{u}_{\mathrm{a},0:N-1}}
+    {\mathrm{minimize}}
+        &\quad \sum_{k=0}^{N-1} \ell(\vect{x}_{\mathrm{a},k}, \vect{u}_{\mathrm{a},k})
+        + \ell_e(\vect{x}_{\mathrm{a},N})
+        \label{eq:ocp_cost}\\
+    \mathrm{subject\ to}\quad
+        &\vect{x}_{\mathrm{a},k+1} =
+        \vect{F}(\vect{x}_{\mathrm{a},k}, \vect{u}_{\mathrm{a},k}),
+        \quad k = 0,\ldots,N-1,
+        \label{eq:ocp_dyn}\\
+        &s_{k+1} = s_k + T_s\,v_{s,k},
+        \quad k = 0,\ldots,N-1,
+        \label{eq:ocp_arc}\\
+        &v_{s,k+1} = v_{s,k} + T_s\,a_{s,k},
+        \quad k = 0,\ldots,N-1,
+        \label{eq:ocp_progress}\\
+        &\vect{x}_{\mathrm{a},0} = \vect{x}_{\mathrm{a},\mathrm{init}},
+        \label{eq:ocp_init}\\
+        &f_{\min} \le f \le f_{\max},
+        \label{eq:ocp_thrust}\\
+        &|\tau_i| \le \tau_{\max},
+        \quad i = 1,2,3,
+        \label{eq:ocp_torque}\\
+        &a_{s,\min} \le a_s \le a_{s,\max},
+        \label{eq:ocp_speed}\\
+        &0 \le s \le s_{\max},
+        \qquad
+        0 \le v_s \le v_{s,\max},
+        \label{eq:ocp_arc_bounds}
+\end{align}
+\end{subequations}
+%
+where $\vect{F}(\vect{x}_{\mathrm{a},k},\,\vect{u}_{\mathrm{a},k})$
+denotes one step of the augmented dynamics~\eqref{eq:dynamics}
+and~\eqref{eq:arc_dyn} integrated by an implicit Runge-Kutta scheme.
+The bound constraint~\eqref{eq:ocp_arc_bounds} confines the virtual
+reference point to the valid domain of the trajectory interpolant,
+preventing extrapolation beyond $s_{\max}$ while ensuring that the
+virtual progress speed remains dynamically consistent with the
+second-order progress model. 
+
+Although the DQ-MPCC formulation is derived using the nominal
+torque-driven quadrotor model, the Software-in-the-Loop validation
+described in Section~\ref{sec:mujoco_sil} employs a practical
+body-rate-and-thrust command interface consistent with the onboard
+flight stack used in the real platform.
+
+\section{Bilevel Optimisation for Weight Tuning}
+\label{sec:bilevel}
+
+The stage cost in~\eqref{eq:cost} depends on a vector of tuning weights,
+collected as
+\begin{equation}
+  \boldsymbol{\vartheta} =
+  \bigl[\,
+    \bm{q}_{c}^\top,\;
+    \bm{q}_{\ell}^\top,\;
+    \bm{q}_{q}^\top,\;
+    \bm{w}_u^\top,\;
+    \bm{q}_{\omega}^\top,\;
+    Q_s
+  \,\bigr]^\top \in \mathbb{R}^{17},
+  \label{eq:weight_vector}
+\end{equation}
+with
+$\bm{q}_{c} = [Q_{c}^x, Q_{c}^y, Q_{c}^z]^\top$,
+$\bm{q}_{\ell} = [Q_{\ell}^x, Q_{\ell}^y, Q_{\ell}^z]^\top$,
+$\bm{q}_{q} = [Q_q^x, Q_q^y, Q_q^z]^\top$,
+$\bm{w}_u = [U^f, U^{\tau_1}, U^{\tau_2}, U^{\tau_3}]^\top$,
+and
+$\bm{q}_{\omega} = [Q_\omega^x, Q_\omega^y, Q_\omega^z]^\top$.
+The associated diagonal weighting matrices are defined as
+$\bm{Q}_\ell = \mathrm{diag}(\bm{q}_{\ell})$,
+$\bm{Q}_c = \mathrm{diag}(\bm{q}_{c})$,
+$\bm{Q}_q = \mathrm{diag}(\bm{q}_q)$,
+$\bm{Q}_\omega = \mathrm{diag}(\bm{q}_\omega)$,
+and
+$\bm{W}_u = \mathrm{diag}(\bm{w}_u)$.
+The additional scalar $Q_a$ appearing in~\eqref{eq:cost} is kept fixed
+throughout the bilevel optimisation in order to isolate the effect of the
+main tracking, effort, and progress weights on the closed-loop behaviour.
+
+Since these parameters are mutually coupled and may span different orders of
+magnitude, manual tuning alone is difficult to reproduce. In this work the
+weight-selection workflow is therefore split into two stages. First, a coarse
+manual adjustment is carried out until a stable and practically useful
+closed-loop behaviour is obtained, yielding a reference vector
+$\boldsymbol{\vartheta}_{\mathrm{ref}}$. Second, bilevel optimisation is used
+only as a \emph{local} refinement around this reference point. This preserves
+the qualitative behaviour obtained by engineering judgement while avoiding an
+overly broad search domain.
+
+During this local refinement, all entries of $\boldsymbol{\vartheta}$ except
+$Q_a$ are allowed to vary inside a bounded neighbourhood of the manual
+reference. The outer level therefore acts on the local decision vector
+\begin{equation}
+  \boldsymbol{\psi} =
+  \bigl[\,
+    \bm{q}_{c}^\top,\;
+    \bm{q}_{\ell}^\top,\;
+    \bm{q}_{q}^\top,\;
+    \bm{w}_u^\top,\;
+    \bm{q}_{\omega}^\top,\;
+    Q_s
+  \,\bigr]^\top \in \mathbb{R}^{17},
+  \label{eq:local_weight_vector}
+\end{equation}
+for the Euclidean MPCC baseline. For the DQ-MPCC controller, the same
+local-refinement logic is used, replacing the rotational block $\bm{q}_{q}$
+by the corresponding Lie-algebra weight vector $\bm{q}_{\phi}$. In both
+cases, the only cost coefficient excluded from the outer decision vector is
+$Q_a$.
+
+\subsection{Bilevel Problem Formulation}
+\label{sec:bilevel_problem}
+
+Let $\mathcal{V}$ denote a representative set of operating conditions. For each
+candidate vector $\boldsymbol{\psi}$ and each $v\in\mathcal{V}$, the
+\emph{inner-level} problem consists of solving the OCP in
+Section~\ref{sec:ocp_formulation} at each sampling instant and simulating the
+resulting closed-loop rollout over the full trajectory. From this rollout, the
+outer level extracts contouring and lag RMSE values together with completion,
+solver-failure, and path-speed metrics.
+
+The \emph{outer-level} optimisation problem is then written as
+\begin{equation}
+  \boldsymbol{\psi}^{\star}
+  =
+  \arg\min_{\boldsymbol{\psi}\in\Theta_{\mathrm{loc}}}
+  J_{\mathrm{multi}}(\boldsymbol{\psi}),
+  \qquad
+  J_{\mathrm{multi}}(\boldsymbol{\psi})
+  =
+  \frac{1}{|\mathcal{V}|}
+  \sum_{v\in\mathcal{V}}
+  J(\boldsymbol{\psi},v),
+  \label{eq:bilevel_multi}
+\end{equation}
+where $\Theta_{\mathrm{loc}}$ denotes a local neighbourhood around the manual
+reference controller $\boldsymbol{\vartheta}_{\mathrm{ref}}$.
+
+For both controllers, each sub-objective is defined as
+\begin{equation}
+\begin{aligned}
+J(\boldsymbol{\psi},v)
+&=
+W_{c}\,\frac{\mathrm{RMSE}_{c}}{\mathrm{RMSE}_{c}^{\mathrm{ref}}(v)}
++ W_{\ell}\,\frac{\mathrm{RMSE}_{\ell}}{\mathrm{RMSE}_{\ell}^{\mathrm{ref}}(v)}
+\\[2pt]
+&\quad
+- W_{v}\,\frac{v_{\mathrm{eff}}}{v_{\mathrm{eff}}^{\mathrm{ref}}(v)}
++ W_{\mathrm{inc}}\,[1-c]^+
++ W_{\mathrm{fail}}\,\eta_{\mathrm{fail}},
+\end{aligned}
+\label{eq:sub_objective}
+\end{equation}
+where $[\cdot]^+=\max(\cdot,0)$,
+$c=\theta_K/s_{\max}$ is the path-completion ratio,
+$\eta_{\mathrm{fail}}$ is the mean solver-failure ratio, and
+\begin{equation}
+  \bar{\rho}
+  =
+  \frac{1}{K}\sum_{k=0}^{K-1}\frac{v_{\mathrm{path},k}}{v_{s,k}+\varepsilon},
+  \qquad
+  v_{\mathrm{eff}} = \bar{v}_s\,\bar{\rho},
+  \label{eq:effective_speed}
+\end{equation}
+with $\bar{v}_s$ the mean virtual progress speed and $v_{\mathrm{path},k}$ the
+realised path-relative speed at step $k$. The superscript ``ref'' denotes the
+metrics obtained with the manually tuned controller
+$\boldsymbol{\vartheta}_{\mathrm{ref}}$ at the same operating condition $v$.
+
+These upper-level costs are aligned with the practical tuning goal of the
+paper: reduce contouring and lag while preserving a physically meaningful
+relation between virtual progress and actual spatial motion. The term based on
+$v_{\mathrm{eff}}$ rewards fast traversal only when the virtual progress
+remains consistent with the realised path speed, thereby discouraging solutions
+that improve the arc-length state artificially without improving the true
+path-following behaviour.
+
+The outer-level optimisation is solved with Bayesian optimisation, while the
+inner level is the full closed-loop controller evaluation.
+
+\section{Experimental Setup}
+\label{sec:impl}
+
+%\subsection{Platform and Hardware}
+
+Numerical simulations are carried out on a desktop workstation equipped with an
+AMD Ryzen 7 7000 series processor running Ubuntu 22.04, while the experimental
+validation is conducted on a custom quadrotor platform with an NVIDIA Jetson Orin
+NX 16\,GB as onboard computer.
+
+The high-level control loop runs at \SI{100}{\hertz}, and the solver
+consistently executes below this timing bound for a prediction horizon of
+\SI{0.3}{\second}. The second-order progress model is handled inside the
+same OCP, so no additional smoothing layer is required outside the solver.
+A more detailed analysis of the effect of the prediction horizon and the
+number of discretization steps \(N\) is left for future work.
+This setup enables evaluation of the full closed-loop software stack under
+flight-representative computational conditions while preserving consistency with
+the command pathway used in the real platform. The corresponding simulator
+approximation is described next.
+
+The OCP~\eqref{eq:ocp} is solved within the ACADOS framework~\cite{verschueren2021acados},
+employing a Sequential Quadratic Programming Real-Time Iteration (SQP-RTI) scheme that
+executes a single QP per control cycle~\cite{diehl2005real}. Quadratic subproblems are handled by HPIPM with
+full condensing, while system dynamics are integrated via an Implicit Runge-Kutta (IRK)
+scheme. The Hessian is approximated via Gauss-Newton with CONVEXIFY regularization, and
+stage costs are expressed as CasADi symbolic externals. The controller operates at a
+sample time of $T_s = \SI{10}{\milli\second}$ over a prediction horizon of
+$T_N = \SI{0.3}{\second}$, discretised into $N = 30$ shooting nodes.
+
+A critical implementation aspect is the representation of the reference
+trajectory $\bm{\gamma}(s)$ as a CasADi symbolic function compatible with
+automatic differentiation in ACADOS. The map is constructed from
+$N_w = 30$ arc-length waypoints over $s \in [0, s_{\max}]$ using
+piecewise-linear interpolation of the dual-quaternion and velocity
+components. Quaternion continuity is preserved by enforcing hemisphere
+consistency, i.e., flipping $q_{r,i}^d \leftarrow -q_{r,i}^d$ whenever
+$q_{r,i-1}^d \cdot q_{r,i}^d < 0$, while the heading angle is unwrapped
+before interpolation.
+
+%\subsection{Weight-Tuning Setup}
+%\label{sec:weight_tuning_setup}
+
+For the experiments in this work, the bilevel tuning procedure is instantiated
+using the representative velocity set
+\[
+\mathcal{V}=\{5,\;10,\;16\}\ \text{m/s}.
+\]
+Each tuning rollout uses the same headless MiL configuration: maximum simulated
+duration $T_{\mathrm{final}}=\SI{30}{\second}$, trajectory-definition window
+$T_{\mathrm{traj}}=\SI{30}{\second}$, control frequency
+$f_s=\SI{100}{\hertz}$ ($T_s=\SI{10}{\milli\second}$), and prediction horizon
+$T_N=\SI{0.3}{\second}$ discretised into $N=30$ shooting nodes with
+$N_w=30$ arc-length interpolation waypoints. Under this setup, one rollout
+contains approximately $2971$ closed-loop simulation steps, and each Optuna
+trial evaluates one full rollout for every operating point in $\mathcal{V}$.
+
+After coarse manual tuning, the local search domain is defined around the
+reference controller $\boldsymbol{\vartheta}_{\mathrm{ref}}$ using
+hierarchical multiplicative windows. The tracking and orientation blocks
+$\bm{q}_{c}$, $\bm{q}_{\ell}$, and $\bm{q}_{q}$ or $\bm{q}_{\phi}$ are searched
+within $[0.75,\;1.35]\times(\cdot)^{\mathrm{ref}}$, the progress weight is
+searched within $[0.75,\;1.35]\times Q_{s}^{\mathrm{ref}}$, the effort block
+$\bm{w}_u$ is searched within $[0.92,\;1.08]\times(\bm{w}_u)^{\mathrm{ref}}$,
+and the angular-rate block $\bm{q}_{\omega}$ is searched within
+$[0.90,\;1.10]\times(\bm{q}_{\omega})^{\mathrm{ref}}$. The progress-acceleration
+weight $Q_a$ remains fixed at its manually tuned value. This choice avoids
+confounding the comparison of tracking-oriented cost weights with the internal
+smoothing imposed on the second-order virtual-progress dynamics, so the bilevel
+refinement focuses on the blocks that directly shape path-following behaviour.
+The resulting local search space is reported in Table~\ref{tab:search_space}.
+
+The same upper-level coefficients are used for both controllers, so that the
+outer bilevel comparison remains methodologically consistent across DQ-MPCC and
+the Euclidean MPCC baseline. In the present study, the local objective
+in~\eqref{eq:sub_objective} is instantiated with
+\(
+W_{c}=1.5,\;
+W_{\ell}=0.35,\;
+W_{v}=0.80,\;
+W_{\mathrm{inc}}=1000,\;
+W_{\mathrm{fail}}=500.
+\)
+
+The outer optimisation is performed with the Tree-structured Parzen Estimator
+(TPE) algorithm implemented in Optuna~\cite{akiba2019optuna}, using 10 uniform
+warm-up trials and random seed 42 for reproducibility. Since each trial requires
+one full closed-loop simulation for each operating point in $\mathcal{V}$, the
+computational cost of each outer iteration is approximately
+$|\mathcal{V}|$ times that of a single simulation run. In the current study,
+the final local refinement stage is carried out with 100 TPE trials per
+controller, which provides sufficient exploration of the bounded neighbourhood
+around the manually tuned operating point without resorting to a full
+high-dimensional global search.
+
+\begin{table}[H]
+\centering
+\caption{Local search window $\Theta_{\mathrm{loc}}$ used in the bilevel
+refinement around the manually tuned reference controller
+($i\in\{x,y,z\}$).}
+\label{tab:search_space}
+\renewcommand{\arraystretch}{1.1}
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{l c}
+\toprule
+\textbf{Parameter} & \textbf{Local range} \\
+\midrule
+$Q_{c,i}$        & $[0.75,\;1.35]\times Q_{c,i}^{\mathrm{ref}}$ \\
+$Q_{\ell,i}$     & $[0.75,\;1.35]\times Q_{\ell,i}^{\mathrm{ref}}$ \\
+$Q_{q,i}$ or $Q_{\phi,i}$ & $[0.75,\;1.35]\times Q_{q,i}^{\mathrm{ref}}$ or $Q_{\phi,i}^{\mathrm{ref}}$ \\
+$Q_s$            & $[0.75,\;1.35]\times Q_{s}^{\mathrm{ref}}$ \\
+$U^f,\;U^{\tau_j}$ & $[0.92,\;1.08]\times (U^f,\;U^{\tau_j})^{\mathrm{ref}}$ \\
+$Q_{\omega,i}$   & $[0.90,\;1.10]\times Q_{\omega,i}^{\mathrm{ref}}$ \\
+$Q_a$            & fixed at manual reference \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+
+
+%\subsection{Reference Trajectory}
+
+The reference path is a three-dimensional Lissajous curve, defined
+in closed form as
+\begin{equation}
+    \vect{p}^d(t)
+    = \begin{bmatrix}
+        A_x \sin(\Omega_x t + \delta_x)\\
+        A_y \sin(\Omega_y t)\\
+        A_z \cos(\Omega_z t) + z_0
+      \end{bmatrix},
+    \label{eq:lissajous}
+\end{equation}
+where $A_x, A_y, A_z$ are the trajectory amplitudes,
+$\Omega_x, \Omega_y, \Omega_z$ the path frequencies,
+$\delta_x$ a phase offset that breaks planar symmetry,
+and $z_0$ the nominal flight altitude. The curve is periodic
+with period $T_L$ and combines low- and high-curvature segments
+that exercise the lag--contouring decomposition across a
+representative range of flight conditions. The time-parametrized
+path $\vect{p}^d(t)$ is evaluated analytically, so derivatives
+$\dot{\vect{p}}^d$ and $\ddot{\vect{p}}^d$ are available in
+closed form without numerical differentiation. The specific
+parameter values used in all experiments are reported in
+Table~\ref{tab:lissajous_params}.
+
+All simulations are conducted on the three-dimensional Lissajous
+path defined in Section~\ref{sec:ref_traj}, equation~\eqref{eq:lissajous},
+with the parameters reported in Table~\ref{tab:lissajous_params}.
+The resulting curve spans a total arc length of approximately
+\SI{80}{\meter} over a period of $T_L = \SI{15}{\second}$,
+combining low-curvature straight segments with tight turns that
+stress the lag--contouring decomposition across both controllers.
+
+\begin{table}[h]
+\centering
+\caption{Lissajous Trajectory Parameters}
+\label{tab:lissajous_params}
+\begin{tabular}{lc}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+Amplitudes $(A_x,\,A_y,\,A_z)$                 & $(10.0,\;8.0,\;3.0)$ \si{\meter} \\
+Frequencies $(\Omega_x,\,\Omega_y,\,\Omega_z)$ & $(0.42,\;0.84,\;1.26)$ \si{\radian\per\second} \\
+Phase offset $\delta_x$                         & $\pi/2$ \si{\radian} \\
+Nominal altitude $z_0$                          & $5.0$ \si{\meter} \\
+Period $T_L$                                    & $15.0$ \si{\second} \\
+Arc length $s_{\max}$                           & ${\approx}\,80$ \si{\meter} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+
+
+% ═══════════════════════ V. RESULTS ════════════════════════
+\section{Results} 
+\label{sec:results}
+
+
+
+\subsection{MiL Simulations}
+
+\subsubsection{Local Tuning Report}
+
+The local refinement reported here follows the common bilevel formulation and
+experimental setup defined in Section~\ref{sec:bilevel_problem} and
+Section~\ref{sec:impl}. Table~\ref{tab:tuning_compact_combined} reports the
+manual and refined gains selected by the local search, while
+Table~\ref{tab:tuning_manual_vs_refined} summarises the corresponding
+closed-loop effect in the final MiL baseline runs.
+
+\begin{table}[H]
+\centering
+\caption{Local tuning summary for both controllers.}
+\label{tab:tuning_compact_combined}
+\scriptsize
+\renewcommand{\arraystretch}{1.05}
+\setlength{\tabcolsep}{2pt}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lccc}
+\toprule
+\textbf{Weight} & \textbf{Manual} & \textbf{DQ-MPCC} & \textbf{MPCC} \\
+\midrule
+$\bm{q}_{\phi}/\bm{q}_{q}$ 
+& $[0.65, 0.65, 1.9]$ 
+& $[0.53, 0.69, 1.7]$ 
+& $[0.62, 0.72, 1.6]$ \\
+$\bm{q}_{c}$ 
+& $[40.0, 40.0, 40.0]$ 
+& $[44.4, 37.9, 32.6]$ 
+& $[40.6, 35.9, 33.7]$ \\
+$\bm{q}_{\ell}$ 
+& $[3.0, 3.0, 3.0]$ 
+& $[4.0, 2.6, 3.6]$ 
+& $[4.0, 4.0, 2.7]$ \\
+$\bm{w}_{u}$ 
+& $[0.050, 70.0, 70.0, 70.0]$ 
+& $[0.049, 68.9, 69.6, 66.6]$ 
+& $[0.049, 70.9, 67.6, 72.2]$ \\
+$\bm{q}_{\omega}$ 
+& $[0.020, 0.020, 0.10]$ 
+& $[0.021, 0.021, 0.100]$ 
+& $[0.020, 0.021, 0.095]$ \\
+$Q_s$ 
+& $11.0$ 
+& $8.4$ 
+& $8.3$ \\
+\midrule
+$J^\star$ & -- & 0.917 & 0.863 \\
+Trial & -- & \#72 & \#94 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Closed-loop comparison between manual and refined gains used in the final baseline runs.}
+\label{tab:tuning_manual_vs_refined}
+\footnotesize
+\renewcommand{\arraystretch}{1.12}
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Controller} & \textbf{Variant} & $\mathbf{RMSE}_c$ & $\mathbf{RMSE}_\ell$ & $\mathbf{v}_{\mathrm{eff}}$ & \textbf{Path} & \textbf{Fail} \\
+\midrule
+DQ-MPCC & Manual  & 0.346 & 0.507 & 1.092 & 100.00\% & 0.00\% \\
+DQ-MPCC & Refined & 0.291 & 0.335 & 1.216 & 100.00\% & 0.00\% \\
+\cmidrule(lr){2-7}
+DQ-MPCC & $\Delta$ (\%) & 16.1 & 33.9 & 11.3 & -- & -- \\
+\midrule
+MPCC    & Manual  & 0.445 & 0.974 & 5.134 & 99.98\% & 0.00\% \\
+MPCC    & Refined & 0.337 & 0.476 & 3.979 & 99.98\% & 0.00\% \\
+\cmidrule(lr){2-7}
+MPCC    & $\Delta$ (\%) & 24.4 & 51.1 & -22.5 & -- & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Overall, both controllers benefited from the local refinement. While the resulting closed-loop effects differ
+between controllers, this stage is important to ensure that the subsequent comparison is conducted on a fairer
+and more balanced basis, since both controllers are evaluated after the same consistent local tuning procedure.
+
+\subsubsection{Velocity Sweep: Contouring and Lag Error Analysis}
+\label{sec:velocity_sweep_analysis}
+
+To rigorously evaluate the tracking quality of both formulations across
+operating regimes, we decompose the position tracking error into its
+orthogonal components: the \emph{contouring error} $e_c$ (perpendicular
+distance to the reference path) and the \emph{lag error} $e_\ell$
+(signed projection along the path tangent).  By the Pythagorean
+relationship these satisfy
+\begin{equation}
+    \mathrm{RMSE}_{e_p}^{2} = \mathrm{RMSE}_{e_c}^{2} + \mathrm{RMSE}_{e_\ell}^{2},
+    \label{eq:decomposition}
+\end{equation}
+which was verified numerically for every run in our Monte~Carlo campaign.
+Both components are computed in the inertial frame to ensure a fair,
+frame-neutral comparison between the DQ-MPCC (which internally operates
+in the body frame via $\mathrm{Log}\bigl(\mathrm{SE}(3)\bigr)$) and
+the Baseline MPCC (inertial-frame errors).
+
+The experiment considers eight maximum progress velocities,
+\[
+v_\theta^{\max} \in \{4,\,6,\,8,\,10,\,12,\,15,\,16,\,18\}\ \text{m/s},
+\]
+with 10 Monte Carlo runs per velocity and per controller
+($\sigma_p = 0.05$~m, $\sigma_q = 0.05$~rad), for a total of
+160 simulations along a Lissajous path of arc length
+$s_{\max} = 80$~m.
+
+%% ─────────────────────────────────────────────────────────────────────
+%%  TABLE I — Full comparative metrics
+%% ─────────────────────────────────────────────────────────────────────
+
+\begin{table*}[t]
+\centering
+\caption{Comparative performance across progress velocities.
+$\Delta$\% is computed as $(x_{\text{DQ}} - x_{\text{Base}})/x_{\text{Base}} \times 100$;
+negative values favour DQ-MPCC.  Bold marks the better value per velocity.}
+\label{tab:velocity_sweep_full}
+\renewcommand{\arraystretch}{1.1}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{r|ccc|ccc|ccc|ccc|ccc}
+\toprule
+& \multicolumn{3}{c|}{Contouring $\mathrm{RMSE}_{e_c}$ [m]}
+& \multicolumn{3}{c|}{Lag $\mathrm{RMSE}_{e_\ell}$ [m]}
+& \multicolumn{3}{c|}{Position $\mathrm{RMSE}_{e_p}$ [m]}
+& \multicolumn{3}{c|}{Orientation $\mathrm{RMSE}_{e_\psi}$ [rad]}
+& \multicolumn{3}{c}{Lap time $t_\mathrm{lap}$ [s]} \\
+$v_\theta^{\max}$
+& DQ & Base & $\Delta$\%
+& DQ & Base & $\Delta$\%
+& DQ & Base & $\Delta$\%
+& DQ & Base & $\Delta$\%
+& DQ & Base & $\Delta$\% \\
+\midrule
+     4 & \textbf{0.2863} & 0.3287 & -12.9\% & 0.2698 & \textbf{0.2168} & +24.4\% & \textbf{0.3934} & 0.3938 & -0.1\% & \textbf{0.3808} & 0.4972 & -23.4\% & 22.29 & 24.03 & -7.3\% \\
+ 6 & \textbf{0.3294} & 0.3850 & -14.4\% & 0.3332 & \textbf{0.2719} & +22.5\% & \textbf{0.4685} & 0.4713 & -0.6\% & \textbf{0.5338} & 0.6767 & -21.1\% & 15.60 & 16.47 & -5.3\% \\
+ 8 & \textbf{0.3869} & 0.4549 & -14.9\% & 0.4059 & \textbf{0.3083} & +31.6\% & 0.5608 & \textbf{0.5498} & +2.0\% & \textbf{0.6561} & 0.8330 & -21.2\% & 12.24 & 12.71 & -3.8\% \\
+10 & \textbf{0.4340} & 0.4521 & -4.0\% & 0.4705 & \textbf{0.3495} & +34.6\% & 0.6401 & \textbf{0.5715} & +12.0\% & \textbf{0.7520} & 0.8956 & -16.0\% & 10.18 & 10.10 & +0.8\% \\
+12 & \textbf{0.4793} & 0.4800 & -0.1\% & 0.5335 & \textbf{0.3904} & +36.6\% & 0.7172 & \textbf{0.6188} & +15.9\% & \textbf{0.8239} & 0.9995 & -17.6\% & 8.74 & 8.81 & -0.7\% \\
+15 & 0.5312 & \textbf{0.5118} & +3.8\% & 0.6404 & \textbf{0.4262} & +50.3\% & 0.8321 & \textbf{0.6660} & +24.9\% & \textbf{0.9225} & 1.0996 & -16.1\% & 7.37 & 7.42 & -0.6\% \\
+16 & 0.5482 & \textbf{0.5479} & +0.1\% & 0.6764 & \textbf{0.4391} & +54.0\% & 0.8707 & \textbf{0.7021} & +24.0\% & \textbf{0.9490} & 1.1123 & -14.7\% & 7.05 & 7.05 & -0.0\% \\
+18 & \textbf{0.5828} & 0.5929 & -1.7\% & 0.7504 & \textbf{0.4738} & +58.4\% & 0.9502 & \textbf{0.7590} & +25.2\% & \textbf{0.9902} & 1.1462 & -13.6\% & 6.51 & 6.49 & +0.4\% \\
+\midrule
+    \textit{Avg.} & 0.4473 & 0.4692 & -4.7\% & 0.5100 & 0.3595 & +41.9\% & 0.6791 & 0.5915 & +14.8\% & 0.7510 & 0.9075 & -17.2\% & 11.25 & 11.63 & -3.3\% \\
+\bottomrule
+\end{tabular}}
+\end{table*}
+
+%% ─────────────────────────────────────────────────────────────────────
+%%  TABLE II — Orthogonal decomposition
+%% ─────────────────────────────────────────────────────────────────────
+
+\begin{table}[H]
+\centering
+\caption{Orthogonal decomposition of the position error into
+contouring (\%$e_c^2$) and lag (\%$e_\ell^2$) components.
+The ratio $e_\ell/e_c$ indicates the dominant error type:
+$>1$ implies lag-dominated tracking, $<1$ implies contouring-dominated.}
+\label{tab:decomposition}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{r|ccc|ccc}
+\toprule
+& \multicolumn{3}{c|}{DQ-MPCC}
+& \multicolumn{3}{c}{Baseline MPCC} \\
+$v_\theta^{\max}$ & \%$e_c^2$ & \%$e_\ell^2$ & $e_\ell/e_c$
+                  & \%$e_c^2$ & \%$e_\ell^2$ & $e_\ell/e_c$ \\
+\midrule
+     4 & 53.0 & 47.0 & 0.942 & 69.7 & 30.3 & 0.660 \\
+ 6 & 49.4 & 50.6 & 1.011 & 66.7 & 33.3 & 0.706 \\
+ 8 & 47.6 & 52.4 & 1.049 & 68.6 & 31.4 & 0.678 \\
+10 & 46.0 & 54.0 & 1.084 & 62.6 & 37.4 & 0.773 \\
+12 & 44.7 & 55.3 & 1.113 & 60.2 & 39.8 & 0.813 \\
+15 & 40.8 & 59.2 & 1.206 & 59.1 & 40.9 & 0.833 \\
+16 & 39.7 & 60.3 & 1.234 & 60.9 & 39.1 & 0.801 \\
+18 & 37.6 & 62.4 & 1.287 & 61.0 & 39.0 & 0.799 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% ─────────────────────────────────────────────────────────────────────
+%%  FIGURE — Pareto frontiers (2×2)
+%% ─────────────────────────────────────────────────────────────────────
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\columnwidth]{Fig/fig_pareto_quad.pdf}
+\caption{Speed--accuracy Pareto frontiers for the DQ-MPCC and
+Baseline MPCC across 8 progress velocities.
+Each point is the median over 10 Monte~Carlo runs;
+error bars denote the interquartile range (P25--P75).
+(a)~Contouring RMSE, (b)~Lag RMSE, (c)~Position RMSE,
+(d)~Orientation RMSE, all vs.\ lap time.
+Annotations indicate $v_\theta^{\max}$ [m/s].}
+\label{fig:pareto_quad}
+\end{figure}
+
+%% ─────────────────────────────────────────────────────────────────────
+%%  FIGURE ANALYSIS
+%% ─────────────────────────────────────────────────────────────────────
+
+Fig.~\ref{fig:pareto_quad} presents the speed--accuracy Pareto frontiers
+for both controllers.
+%
+In panel~(a), the DQ-MPCC (blue) lies below the Baseline (red) for $v_\theta^{\max} < 15$~m/s, after which the curves nearly merge (gap $<0.010$~m at $18$~m/s),
+confirming that the coupled $\mathrm{SE}(3)$ formulation yields tighter
+geometric adherence to the path.
+%
+Panel~(b) reveals the opposite: the Baseline's lag curve is consistently
+lower, with an absolute gap that widens from
+$0.053$~m at $4$~m/s
+to $0.277$~m at $18$~m/s,
+reflecting the decoupled formulation's ability to independently minimise
+along-path delay.
+%
+Panel~(c) combines both components via~\eqref{eq:decomposition}:
+the curves cross near $v_\theta^{\max} \approx 8$~m/s, with the lag-dominated DQ-MPCC yielding higher total position error
+at high speeds.
+%
+Finally, panel~(d) shows that the DQ-MPCC maintains consistently lower
+orientation error across the entire velocity range
+($13.6$--$23.4\%$),
+a direct benefit of the pose-level coupling in the cost function.
+
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\columnwidth]{Fig/fig_3d_velocity.pdf}
+\caption{Three-dimensional closed-loop trajectories for both controllers
+across multiple progress-velocity limits. Grey curves correspond to
+$v_{\theta}^{\max} \in \{4,6,8,12,14,16,18,20\}$~m/s, while the red curve
+highlights $v_{\theta}^{\max}=10$~m/s as the nominal operating point. The
+dashed black curve is the arc-length-parameterised reference path
+($s_{\max}=80$~m). The DQ-MPCC maintains tighter spatial adherence in
+high-curvature regions, whereas the baseline tends to achieve smaller lag
+at the expense of larger orientation and contouring deviations.}
+\label{fig:3d_beahaibiur}
+\end{figure}
+
+%% ─────────────────────────────────────────────────────────────────────
+%%  ANALYSIS  (all numbers auto-generated)
+%% ─────────────────────────────────────────────────────────────────────
+
+\subsubsection{Contouring vs.\ Lag Decomposition}
+
+Table~\ref{tab:velocity_sweep_full} shows that the DQ-MPCC achieves lower
+contouring error for $v_\theta^{\max} < 15$~m/s
+(avg.\ $-4.7\%$, best $-14.9\%$ at $8$~m/s),
+whereas the Baseline MPCC dominates in lag error
+(avg.\ $+41.9\%$, up to $+58.4\%$ at $18$~m/s).
+The decomposition in Table~\ref{tab:decomposition} explains this asymmetry:
+the Baseline is \emph{contouring-dominated}
+($59$--$70\%$ of $\|e_p\|^2$ comes from $e_c$,
+$e_\ell/e_c < 1$ at all speeds),
+while the DQ-MPCC transitions from near parity
+($53$/$\ 47$\%
+at $4$~m/s) to \emph{lag-dominated}
+($38$/$\ 62$\%,
+$e_\ell/e_c = 1.29$ at $18$~m/s).
+%
+The root cause is structural: the DQ-MPCC's $\mathrm{SE}(3)$ logarithmic
+error map $\boldsymbol{\rho} = \mathbf{J}_l(\boldsymbol{\varphi})^{-1}
+\mathbf{R}_d^\top \Delta\mathbf{p}$ couples position and orientation,
+preventing the solver from independently minimising the tangential projection.
+The Baseline, by contrast, penalises $e_c$ and $e_\ell$ as decoupled cost
+terms, enabling aggressive lag reduction at the expense of orientation fidelity.
+These results therefore do not support a blanket claim of superiority of one
+controller over the other; rather, they show that the proposed DQ-MPCC
+systematically shifts the closed-loop trade-off toward better contouring and
+attitude consistency, while the Euclidean baseline remains more effective at
+reducing tangential lag.
+
+% ═══════════════════════════════════════════════════════════════════
+%  AUTO-GENERATED — do not edit manually
+%  Source: latex/generate_montecarlo.py
+% ═══════════════════════════════════════════════════════════════════
+
+
+\subsection{Experiment~3: Monte Carlo Robustness Evaluation}
+\label{sec:experiment3}
+
+To evaluate robustness under uncertain initial conditions, we perform
+a Monte Carlo study with $N = 100$ trials at a fixed progress-velocity
+limit $v_{\theta}^{\max} = 10$~m/s.  Each trial samples
+a random initial pose: position is perturbed as
+$\mathbf{p}_0 \sim \mathcal{N}(\bar{\mathbf{p}}_0,\,
+\sigma_p^2 \mathbf{I}_3)$ with $\sigma_p = 2.0$~m,
+and orientation as a random rotation with
+$\|\mathrm{Log}(\delta q)\| \sim U(0,\, 0.5)$~rad
+($\approx 29^\circ$).
+The path length is $s_{\max} = 80$~m with a time budget
+of $T = 40$~s.
+A trial is deemed \emph{successful} if the progress variable reaches
+$\theta \geq 95\%$ of $s_{\max}$.
+
+\begin{table}[H]
+  \centering
+  \caption{Monte Carlo robustness comparison ($v = 10$~m/s, $N = 100$).}
+  \label{tab:montecarlo}
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{l c c c}
+    \toprule
+    \textbf{Metric} & \textbf{DQ-MPCC} & \textbf{Baseline} & $\boldsymbol{\Delta}$ \\
+    \midrule
+    Conv. rate [\%] & 99.0 & 100.0 & -1.0\% \\
+    RMSE $e_c$ & $0.8243 \pm 0.5405$ & $0.7632 \pm 0.6192$ & +8.0\% \\
+    RMSE $e_l$ & $0.6425 \pm 0.3936$ & $0.4827 \pm 0.2650$ & +33.1\% \\
+    RMSE $e_{\mathrm{pos}}$ & $1.0824 \pm 0.6066$ & $0.9390 \pm 0.6224$ & +15.3\% \\
+    RMSE $e_{\mathrm{ori}}$ & $0.9118 \pm 0.1147$ & $1.0132 \pm 0.0419$ & -10.0\% \\
+    \midrule
+    Solver time [ms] & $3.81 \pm 0.11$ & $2.04 \pm 0.09$ & +86.7\% \\
+    Ctrl. effort & $33518.1 \pm 75505.4$ & $35187.1 \pm 30591.3$ & -4.7\% \\
+    Lap time [s] & $10.57 \pm 0.29$ & $10.39 \pm 0.30$ & +1.7\% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Convergence}
+The baseline achieves a convergence rate of 100.0\%, compared to 99.0\% for DQ-MPCC.
+Both controllers achieve near-perfect convergence despite large
+initial-pose perturbations ($\sigma_p = 2.0$~m,
+$\sigma_q = 0.5$~rad), confirming reliable operation
+under uncertainty.
+
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=\columnwidth]{Fig/fig_mc_robustness.pdf}
+  \caption{Distribution of per-run RMSE across 100 Monte Carlo trials
+           with random initial poses ($\sigma_p = 2.0$~m,
+           $\sigma_q = 0.5$~rad) at $v_{\theta}^{\max} = 10$~m/s.
+           Violin contours show probability density; individual points
+           overlay each trial.  Median values are annotated.}
+  \label{fig:mc_robustness}
+\end{figure}
+
+\paragraph{Tracking accuracy and Pareto consistency}
+Fig.~\ref{fig:mc_robustness} displays the error distributions
+for all four RMSE metrics.
+The orientation subplot confirms that DQ-MPCC consistently reduces
+$e_{\mathrm{ori}}$: its median
+($0.8708)$ lies well below the baseline median
+($1.0046)$, with DQ-MPCC winning in
+85\,/\,99 individual trials
+($\Delta\bar{e}_{\mathrm{ori}} = -10.0\%$).
+Crucially, the baseline's $e_{\mathrm{ori}}$ distribution
+is tightly concentrated ($\sigma = 0.0419$),
+while DQ-MPCC's wider spread
+($\sigma = 0.1147$) reflects a
+pose-dependent adaptation enabled by the Lie-algebraic coupling
+between translation and rotation.
+%
+This trade-off mirrors the Pareto front in Experiment~2
+(Fig.~\ref{fig:pareto_quad}): at $v = 10$~m/s with nominal
+initial conditions, DQ-MPCC achieves $e_c = 0.434$
+($-4.0\%$) and $e_{\mathrm{ori}} = 0.752$
+($-16.0\%$) relative to the baseline.
+Under large pose perturbations ($\sigma_p = 2.0$~m),
+the transient convergence phase inflates the contouring error
+to $\bar{e}_c = 0.8243$ (+8.0\%),
+yet the orientation advantage is preserved (-10.0\%).
+%
+Notably, the lag error $e_l$ shows a consistent trend across
+both experiments (Exp.~2: $+34.6\%$, Exp.~3: +33.1\%),
+indicating that DQ-MPCC systematically trades
+progress speed for orientation alignment. This trade-off is desirable
+for applications in which rigid-body pose consistency and attitude
+quality are more critical than purely tangential progress tracking.
+
+\paragraph{Computational cost}
+The mean solver time per MPC step is
+$3.81$~ms for DQ-MPCC and
+$2.04$~ms for the baseline (+86.7\%).
+Both remain well within the $10$~ms real-time budget
+($f = 100$~Hz).
+
+\paragraph{Control effort}
+The accumulated control-rate effort
+$\sum\|\Delta \mathbf{u}\|^2$ averages
+$33518.1$ for DQ-MPCC and
+$35187.1$ for the baseline (-4.7\%),
+indicating smoother
+actuation for the dual-quaternion formulation.
+
+
+
+\subsection{Simulation Experiment}
+
+\label{sec:mujoco_sil}
+Prior to flight tests, both controllers are validated in a MuJoCo-based
+Software-in-the-Loop (SiL) setup executed on the Jetson Orin NX. Because the
+onboard flight stack accepts body-rate and thrust commands rather than direct
+torque inputs, the simulator is configured to reproduce the same control
+interface.
+
+Unlike the nominal rigid-body model introduced in
+Section~\ref{sec:dynamics}, where the rotational dynamics are expressed
+in terms of applied control torques, the MuJoCo simulator employs a
+closed-loop approximation of the onboard angular-rate controller.
+Specifically, the rotational subsystem is represented by the first-order
+response
+\begin{equation}
+    \dot{\vect{\omega}}
+    =
+    -\mat{K}_{\omega}
+    \left(
+        \vect{\omega} - \vect{\omega}_{\mathrm{cmd}}
+    \right),
+    \label{eq:sil_rate_model}
+\end{equation}
+where $\vect{\omega} \in \mathbb{R}^{3}$ is the measured body angular
+velocity, $\vect{\omega}_{\mathrm{cmd}} \in \mathbb{R}^{3}$ is the
+commanded body-rate vector, and
+$\mat{K}_{\omega} = \mathrm{diag}(k_x,k_y,k_z)$ is a diagonal gain
+matrix that approximates the effective bandwidth of the inner rate loop.
+
+Accordingly, the simulator input is defined as
+\begin{equation}
+    \vect{u}_{\mathrm{sil}}
+    =
+    \begin{bmatrix}
+        f &
+        \omega_{x,\mathrm{cmd}} &
+        \omega_{y,\mathrm{cmd}} &
+        \omega_{z,\mathrm{cmd}}
+    \end{bmatrix}^{\!\top},
+    \label{eq:sil_input}
+\end{equation}
+which matches the practical command interface used by the flight stack.
+
+This SiL approximation is introduced only for implementation-level
+validation and does not replace the nominal control-oriented model used
+in the DQ-MPCC derivation. Rather, it serves as a closed-loop surrogate
+of the onboard rate controller, enabling a more realistic assessment of
+timing, numerical behaviour, and command consistency prior to real-world
+flight tests.
+
+\subsection{Real Experiment}
+% ═══════════════════════ REFERENCES ════════════════════════
+\bibliographystyle{IEEEtran}
+
+\begin{thebibliography}{10}
+
+\bibitem{liniger2015optimization}
+A.~Liniger, A.~Domahidi, and M.~Morari, ``Optimization-based autonomous racing of 1:43 scale RC cars,'' \emph{Optimal Control Applications and Methods}, vol.~36, no.~5, pp.~628--647, 2015.
+
+\bibitem{romero2022model}
+A.~Romero, S.~Sun, P.~Foehn, and D.~Scaramuzza, ``Model predictive contouring control for time-optimal quadrotor flight,'' \emph{IEEE Transactions on Robotics}, vol.~38, no.~6, pp.~3340--3356, 2022.
+
+\bibitem{kabzan2019amz}
+J.~Kabzan \emph{et~al.}, ``AMZ Driverless: The full autonomous racing system,'' \emph{Journal of Field Robotics}, vol.~37, no.~7, pp.~1267--1294, 2020.
+
+\bibitem{wang2012}
+X.~Wang and C.~Yu, ``Unit dual quaternion-based feedback linearization tracking problem for attitude and position dynamics,'' \emph{Systems \& Control Letters}, vol.~61, no.~12, pp.~1261--1269, 2012.
+
+\bibitem{abaunza2017}
+H.~Abaunza, L.~Montes, and C.~Ferreira, ``Dual quaternion modeling and control of a quad-rotor aerial manipulator,'' \emph{IEEE Latin America Transactions}, vol.~15, no.~2, pp.~220--228, 2017.
+
+\bibitem{kenwright2012dual}
+B.~Kenwright, ``A beginners guide to dual-quaternions,'' in \emph{Proc. 20th International Conference in Central Europe on Computer Graphics, Visualization and Computer Vision}, 2012, pp.~1--13.
+
+\bibitem{johansen2019review}
+T.~A.~Johansen, T.~I.~Fossen, S.~M.~A.~Shah, and A.~S.~de~Oliveira, ``Dual quaternion control: A review of recent results within motion control,'' \emph{Nonlinear Studies}, vol.~26, no.~2, pp.~265--281, 2019.
+
+\bibitem{daniilidis1999}
+K.~Daniilidis, ``Hand-eye calibration using dual quaternions,'' \emph{The International Journal of Robotics Research}, vol.~18, no.~3, pp.~286--298, 1999.
+
+\bibitem{selig2005}
+J.~M.~Selig, \emph{Geometric Fundamentals of Robotics}, 2nd~ed.\hskip 1em plus 0.5em minus 0.4em\relax Springer, 2005.
+
+\bibitem{sola2018micro}
+J.~Sol\`{a}, J.~Deray, and D.~Atchuthan, ``A micro Lie theory for state estimation in robotics,'' \emph{arXiv preprint arXiv:1812.01537}, 2018.
+
+\bibitem{barfoot2017}
+T.~D.~Barfoot, \emph{State Estimation for Robotics}.\hskip 1em plus 0.5em minus 0.4em\relax Cambridge University Press, 2017.
+
+\bibitem{verschueren2021acados}
+R.~Verschueren \emph{et~al.}, ``acados---A modular open-source framework for fast embedded optimal control,'' \emph{Mathematical Programming Computation}, vol.~14, pp.~147--183, 2022.
+
+\bibitem{murray1994mathematical}
+R.~M.~Murray, Z.~Li, and S.~S.~Sastry, \emph{A Mathematical Introduction to Robotic Manipulation}.\hskip 1em plus 0.5em minus 0.4em\relax CRC Press, 1994.
+
+\bibitem{park1995}
+F.~C.~Park, J.~E.~Bobrow, and S.~R.~Ploen, ``A Lie group formulation of robot dynamics,'' \emph{The International Journal of Robotics Research}, vol.~14, no.~6, pp.~609--618, 1995.
+
+\bibitem{bullo1995proportional}
+F.~Bullo and R.~M.~Murray, ``Proportional derivative (PD) control on the Euclidean group,'' in \emph{Proc. European Control Conference}, 1995, pp.~1091--1097.
+
+\bibitem{lee2010geometric}
+T.~Lee, M.~Leok, and N.~H.~McClamroch, ``Geometric tracking control of a quadrotor UAV on SE(3),'' in \emph{Proc.\ IEEE Conference on Decision and Control}, 2010, pp.~5420--5425.
+
+\bibitem{mellinger2011minimum}
+D.~Mellinger and V.~Kumar, ``Minimum snap trajectory generation and control for quadrotors,'' in \emph{Proc. IEEE International Conference on Robotics and Automation}, 2011, pp.~2520--2525.
+
+\bibitem{diehl2005real}
+M.~Diehl, H.~G.~Bock, and J.~P.~Schl\"oder, ``A real-time iteration scheme for nonlinear optimization in optimal feedback control,'' \emph{SIAM Journal on Control and Optimization}, vol.~43, no.~5, pp.~1714--1736, 2005.
+
+\bibitem{baumgarte1972}
+J.~Baumgarte, ``Stabilization of constraints and integrals of motion in dynamical systems,'' \emph{Computer Methods in Applied Mechanics and Engineering}, vol.~1, no.~1, pp.~1--16, 1972.
+
+\bibitem{akiba2019optuna}
+T.~Akiba, S.~Sano, T.~Yanase, T.~Ohta, and M.~Koyama,
+``Optuna: A next-generation hyperparameter optimization framework,''
+in \emph{Proc. 25th ACM SIGKDD International Conference on
+Knowledge Discovery \& Data Mining}, 2019, pp.~2623--2631.
+
+\end{thebibliography}
+
+
+
+
+\vfill
+
+\end{document}

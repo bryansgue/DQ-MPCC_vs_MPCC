@@ -8,13 +8,18 @@ Architecture
   LEVEL 2 (inner):  Full DQ-MPCC simulation with acados (runs ~30 s per eval).
                     The solver was compiled ONCE with symbolic parameters.
 
-The meta-cost uses the SAME cost function as the DQ-MPCC solver:
+The outer loop does NOT reuse the candidate-weighted DQ-MPCC cost directly.
+Instead, it evaluates each inner closed-loop rollout with a fixed task-level
+meta-objective built from performance metrics:
 
-    J_stage = φ'Q_φ·φ + ρ_cont'Q_ec·ρ_cont + ρ_lag'Q_el·ρ_lag
-            + u'U·u + ω'Q_ω·ω + Q_s·(v_max − v_θ)²
+    J_outer = completion_penalty
+            + lap_time_penalty
+            + progress_velocity_penalty
+            + axis_isotropy_penalty
+            + contouring_penalty
 
-accumulated over the entire trajectory.  An additional penalty for
-incomplete path traversal is added to discourage premature stops.
+This keeps the outer objective comparable across gain candidates, instead of
+changing the evaluation rule together with the gains being tuned.
 
 Usage
 ─────
@@ -144,7 +149,6 @@ def _evaluate_single_velocity(weights: dict, v_max: float,
     except Exception as e:
         return 1e6, {'error': str(e)}
 
-    mpcc_cost = result['mean_mpcc_cost']
     compl     = result['path_completed']
     rmse_c    = result['rmse_contorno']
     v_mean    = float(result['mean_vtheta'])
@@ -152,10 +156,12 @@ def _evaluate_single_velocity(weights: dict, v_max: float,
     s_max     = result['s_max']
 
     # Guard against NaN / Inf
-    if not np.isfinite(mpcc_cost) or not np.isfinite(rmse_c):
+    if not np.isfinite(rmse_c):
         return 1e6, result
 
-    J = mpcc_cost
+    # Outer objective: fixed task-level evaluation, independent of the
+    # candidate-weighted inner DQ-MPCC cost.
+    J = 0.0
 
     # Completion penalty
     if compl < 0.99:
@@ -353,7 +359,7 @@ def main():
             'n_trials': len(history_records),
             'sampler': args.sampler,
             'objective_info': {
-                'type': 'MEAN over velocities of (dq_mpcc_cost + completion + time + vel + isotropy + contour)',
+                'type': 'MEAN over velocities of (completion + time + vel + isotropy + contour)',
                 'W_INCOMPLETE': W_INCOMPLETE,
                 'W_TIME': W_TIME,
                 'W_VEL': W_VEL,
@@ -378,7 +384,7 @@ def main():
         'user_attrs': {k: float(v) for k, v in best.user_attrs.items()
                        if isinstance(v, (int, float))},
         'objective_info': {
-            'type': 'MEAN over velocities of (dq_mpcc_cost + completion + time + vel + isotropy + contour)',
+            'type': 'MEAN over velocities of (completion + time + vel + isotropy + contour)',
             'strategy': 'multi-velocity',
             'TUNING_VELOCITIES': TUNING_VELOCITIES,
             'W_INCOMPLETE': W_INCOMPLETE,

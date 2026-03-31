@@ -1,231 +1,211 @@
 """
-DQ-MPCC (Dual-Quaternion Model Predictive Contouring Control) – Lie-invariant
-formulation with symbolic trajectory interpolation.
+Canonical DQ-MPCC controller with runtime parameters p ∈ R^18.
 
-Key DQ-MPCC features:
-  • θ (arc-length progress) is an optimisation STATE   (x[14])
-  • v_θ (progress velocity) is an optimisation CONTROL (u[4])
-  • θ̇ = v_θ  (augmented dynamics)
-  • Pose error via exact se(3) logarithmic map:
-        [φ; ρ] = Log(Q_d* ⊗ Q)
-  • Lag-contouring decomposition of ρ in the desired body frame
-  • The reference is a **symbolic CasADi function of θ** so the solver
-    can differentiate through:
-        v_θ  →  θ̇=v_θ  →  θ  →  reference(θ)  →  error  →  cost
+This is the OCP that should be used by BOTH:
+  - production simulation / execution
+  - bilevel tuning
 
-State   x ∈ ℝ¹⁵ = [dq(8), twist(6), θ]
-Control u ∈ ℝ⁵  = [T, τx, τy, τz, v_θ]
+Compile ONCE, then update numeric values at runtime via:
+    solver.set(stage, "p", p_vec)
 
-Cost structure:
-    L = φᵀ Q_φ φ  +  ρ_lag ᵀ Q_l  ρ_lag  +  ρ_cont ᵀ Q_c  ρ_cont
-      + u[:4]ᵀ R  u[:4]  +  ωᵀ Q_ω  ω
-      + Q_s (v_max − v_θ)²
+Parameter vector:
+    p[ 0: 3]  -> Q_phi     rotation-log error weights
+    p[ 3: 6]  -> Q_ec      contouring error weights
+    p[ 6: 9]  -> Q_el      lag error weights
+    p[ 9:13]  -> U_mat     control effort weights [T, taux, tauy, tauz]
+    p[13:16]  -> Q_omega   angular-velocity weights
+    p[16]     -> Q_s       linear progress weight in -Q_s * v_theta
+    p[17]     -> vtheta_max runtime upper bound helper (not part of the cost)
 """
 
 import os
 import sys
 import shutil
 import numpy as np
-from casadi import MX, vertcat, norm_2, dot
+from casadi import MX, norm_2, diag as casadi_diag
 from acados_template import AcadosOcp, AcadosOcpSolver
 
-from models.dq_quadrotor_mpcc_model import MASS, f_dq_system_model_mpcc
+from models.dq_quadrotor_mpcc_model import f_dq_system_model_mpcc
 from utils.dq_casadi_utils import (
     dq_error_casadi,
     ln_dual_casadi,
     dq_from_pose_casadi,
-    dq_get_quaternion_casadi,
     rotate_tangent_to_desired_frame,
     lag_contouring_decomposition,
 )
 
-# ── Shared experiment parameters ─────────────────────────────────────────────
 _WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 if _WORKSPACE_ROOT not in sys.path:
     sys.path.insert(0, _WORKSPACE_ROOT)
+
 from experiment_config import (
-    G,
-    T_MAX as _CFG_T_MAX, T_MIN as _CFG_T_MIN,
-    TAUX_MAX as _CFG_TAUX_MAX, TAUY_MAX as _CFG_TAUY_MAX, TAUZ_MAX as _CFG_TAUZ_MAX,
-    VTHETA_MIN as _CFG_VTHETA_MIN, VTHETA_MAX as _CFG_VTHETA_MAX,
+    T_MAX, T_MIN,
+    TAUX_MAX, TAUY_MAX, TAUZ_MAX,
+    VTHETA_MIN, VTHETA_MAX, ATHETA_MIN, ATHETA_MAX,
     DQ_Q_PHI, DQ_Q_EC, DQ_Q_EL, DQ_U_MAT, DQ_Q_OMEGA, DQ_Q_S,
+    DQ_Q_ATHETA,
 )
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-#  Weights & limits — all imported from experiment_config.py
-# ──────────────────────────────────────────────────────────────────────────────
-DEFAULT_Q_PHI   = DQ_Q_PHI
-DEFAULT_Q_EC    = DQ_Q_EC
-DEFAULT_Q_EL    = DQ_Q_EL
-DEFAULT_U_MAT   = DQ_U_MAT
+N_PARAMS = 18
+
+DEFAULT_Q_PHI = DQ_Q_PHI
+DEFAULT_Q_EC = DQ_Q_EC
+DEFAULT_Q_EL = DQ_Q_EL
+DEFAULT_U_MAT = DQ_U_MAT
 DEFAULT_Q_OMEGA = DQ_Q_OMEGA
-DEFAULT_Q_S     = DQ_Q_S
-
-DEFAULT_T_MAX      = _CFG_T_MAX
-DEFAULT_T_MIN      = _CFG_T_MIN
-DEFAULT_TAUX_MAX   = _CFG_TAUX_MAX
-DEFAULT_TAUY_MAX   = _CFG_TAUY_MAX
-DEFAULT_TAUZ_MAX   = _CFG_TAUZ_MAX
-DEFAULT_VTHETA_MIN = _CFG_VTHETA_MIN
-DEFAULT_VTHETA_MAX = _CFG_VTHETA_MAX
+DEFAULT_Q_S = DQ_Q_S
+DEFAULT_VTHETA_MAX = VTHETA_MAX
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  OCP builder
-# ══════════════════════════════════════════════════════════════════════════════
+def weights_to_param_vector(weights: dict | None = None) -> np.ndarray:
+    """Pack runtime weights into p ∈ R^18."""
+    w = weights or {}
+    p = np.zeros(N_PARAMS)
+    p[0:3] = w.get("Q_phi", DEFAULT_Q_PHI)
+    p[3:6] = w.get("Q_ec", DEFAULT_Q_EC)
+    p[6:9] = w.get("Q_el", DEFAULT_Q_EL)
+    p[9:13] = w.get("U_mat", DEFAULT_U_MAT)
+    p[13:16] = w.get("Q_omega", DEFAULT_Q_OMEGA)
+    p[16] = w.get("Q_s", DEFAULT_Q_S)
+    p[17] = w.get("vtheta_max", DEFAULT_VTHETA_MAX)
+    return p
+
+
+def apply_input_bounds(
+    solver,
+    n_prediction: int,
+    s_max: float,
+    vtheta_max: float | None = None,
+) -> None:
+    """Apply runtime numeric bounds via constraints_set."""
+    vtheta_max_eff = float(VTHETA_MAX if vtheta_max is None else vtheta_max)
+    lbu = np.array([T_MIN, -TAUX_MAX, -TAUY_MAX, -TAUZ_MAX, ATHETA_MIN])
+    ubu = np.array([T_MAX, TAUX_MAX, TAUY_MAX, TAUZ_MAX, ATHETA_MAX])
+    lbx = np.array([0.0, VTHETA_MIN])
+    ubx = np.array([s_max, vtheta_max_eff])
+    for stage in range(n_prediction):
+        solver.constraints_set(stage, "lbu", lbu)
+        solver.constraints_set(stage, "ubu", ubu)
+    for stage in range(1, n_prediction):
+        solver.constraints_set(stage, "lbx", lbx)
+        solver.constraints_set(stage, "ubx", ubx)
+
 
 def create_dq_mpcc_ocp_description(
     x0, N_horizon, t_horizon, s_max,
     gamma_pos, gamma_vel, gamma_quat,
 ) -> AcadosOcp:
-    """Create DQ-MPCC OCP with Lie-invariant cost on se(3).
-
-    The desired dual quaternion, tangent, and quaternion are all symbolic
-    CasADi functions of θ = x[14].  The solver differentiates through
-    θ → reference → error → cost, making v_θ truly optimisable.
-
-    Cost structure:
-        L = φᵀ Q_φ φ  +  ρ_lag ᵀ Q_l  ρ_lag  +  ρ_cont ᵀ Q_c  ρ_cont
-          + u[:4]ᵀ R  u[:4]  +  ωᵀ Q_ω  ω
-          + Q_s (v_max − v_θ)²
-    """
+    """Build DQ-MPCC OCP with runtime parameters for all numeric weights."""
     ocp = AcadosOcp()
     model, _, _, _ = f_dq_system_model_mpcc()
+    model.name = "DQ_Drone_MPCC_runtime_accel"
     ocp.model = model
 
-    # Absolute path so the compiled solver always lives next to the ocp/ folder,
-    # regardless of what cwd is when the script runs.
-    _OCP_DIR = os.path.dirname(os.path.abspath(__file__))
-    _PROJ_DIR = os.path.dirname(_OCP_DIR)
-    ocp.code_export_directory = os.path.join(_PROJ_DIR, 'c_generated_code_dq')
-
+    ocp_dir = os.path.dirname(os.path.abspath(__file__))
+    proj_dir = os.path.dirname(ocp_dir)
+    ocp.code_export_directory = os.path.join(
+        proj_dir, "c_generated_code_dq_runtime_accel"
+    )
     ocp.solver_options.N_horizon = N_horizon
 
-    # ── Runtime parameter: v_theta_max ───────────────────────────────────
-    p_vtheta_max = MX.sym('p_vtheta_max')
-    model.p = p_vtheta_max
-    ocp.parameter_values = np.array([DEFAULT_VTHETA_MAX])
+    p_sym = MX.sym("p", N_PARAMS)
+    model.p = p_sym
 
-    # ── Weights ──────────────────────────────────────────────────────────
-    Q_phi   = np.diag(DEFAULT_Q_PHI)          # 3×3  orientation
-    Q_ec    = np.diag(DEFAULT_Q_EC)           # 3×3  contouring
-    Q_el    = np.diag(DEFAULT_Q_EL)           # 3×3  lag
-    U_mat   = np.diag(DEFAULT_U_MAT)          # 4×4  control effort
-    Q_omega = np.diag(DEFAULT_Q_OMEGA)        # 3×3  angular velocity
-    Q_s     = DEFAULT_Q_S                     # scalar speed incentive
+    Q_phi = casadi_diag(p_sym[0:3])
+    Q_ec = casadi_diag(p_sym[3:6])
+    Q_el = casadi_diag(p_sym[6:9])
+    U_mat = casadi_diag(p_sym[9:13])
+    Q_omega = casadi_diag(p_sym[13:16])
+    Q_s = p_sym[16]
 
-    ocp.cost.cost_type   = "EXTERNAL"
+    ocp.cost.cost_type = "EXTERNAL"
     ocp.cost.cost_type_e = "EXTERNAL"
 
-    # ── Symbolic reference from θ ────────────────────────────────────────
-    theta_state = model.x[14]                 # θ is the 15th state
-    sd      = gamma_pos(theta_state)          # (3,)  reference position
-    tangent = gamma_vel(theta_state)          # (3,)  unit tangent (inertial)
-    qd      = gamma_quat(theta_state)        # (4,)  desired quaternion
+    theta_state = model.x[14]
+    v_theta_state = model.x[15]
+    sd = gamma_pos(theta_state)
+    tangent = gamma_vel(theta_state)
+    qd = gamma_quat(theta_state)
 
-    # Build desired dual quaternion from position + quaternion interpolators
-    dq_desired = dq_from_pose_casadi(qd, sd)  # (8,)
-
-    # Current dual quaternion from state
+    dq_desired = dq_from_pose_casadi(qd, sd)
     dq_actual = model.x[0:8]
+    dq_err = dq_error_casadi(dq_desired, dq_actual)
+    log_err = ln_dual_casadi(dq_err)
 
-    # ── Dual-quaternion error + exact Log ────────────────────────────────
-    dq_err = dq_error_casadi(dq_desired, dq_actual)   # Q_err = Q_d* ⊗ Q
-    log_err = ln_dual_casadi(dq_err)                    # [φ(3); ρ(3)] ∈ se(3)
-
-    phi = log_err[0:3]    # rotation vector (axis·angle)
-    rho = log_err[3:6]    # translational error (desired body frame)
-
-    # ── Lag-contouring decomposition in the desired body frame ───────────
-    # Rotate inertial tangent into desired body frame:  t_body = R_d^T · t
+    phi = log_err[0:3]
+    rho = log_err[3:6]
     tangent_body = rotate_tangent_to_desired_frame(tangent, qd)
     rho_lag, rho_cont = lag_contouring_decomposition(rho, tangent_body)
 
-    # ── Twist and control ────────────────────────────────────────────────
-    omega   = model.x[8:11]                   # angular velocity [ωx, ωy, ωz]
-    v_theta = model.u[4]                      # progress velocity
+    omega = model.x[8:11]
+    a_theta = model.u[4]
 
-    # ── Cost terms ───────────────────────────────────────────────────────
-    orientation_cost  = phi.T @ Q_phi @ phi
-    contouring_cost   = rho_cont.T @ Q_ec @ rho_cont
-    lag_cost          = rho_lag.T @ Q_el @ rho_lag
-    control_cost      = model.u[0:4].T @ U_mat @ model.u[0:4]
-    omega_cost        = omega.T @ Q_omega @ omega
-    arc_speed_penalty = Q_s * (p_vtheta_max - v_theta)**2
+    orientation_cost = phi.T @ Q_phi @ phi
+    contouring_cost = rho_cont.T @ Q_ec @ rho_cont
+    lag_cost = rho_lag.T @ Q_el @ rho_lag
+    control_cost = model.u[0:4].T @ U_mat @ model.u[0:4]
+    omega_cost = omega.T @ Q_omega @ omega
+    accel_progress_cost = DQ_Q_ATHETA * a_theta**2
+    progress_cost = -Q_s * v_theta_state
 
-    # ── Stage cost ───────────────────────────────────────────────────────
     ocp.model.cost_expr_ext_cost = (
         orientation_cost + contouring_cost + lag_cost
-        + control_cost + omega_cost
-        + arc_speed_penalty
+        + control_cost + omega_cost + accel_progress_cost + progress_cost
     )
-
-    # ── Terminal cost (no control or speed terms) ────────────────────────
     ocp.model.cost_expr_ext_cost_e = (
         orientation_cost + contouring_cost + lag_cost + omega_cost
     )
 
-    # ── Control constraints ──────────────────────────────────────────────
+    ocp.parameter_values = weights_to_param_vector()
+
     ocp.constraints.lbu = np.array([
-        DEFAULT_T_MIN, -DEFAULT_TAUX_MAX, -DEFAULT_TAUY_MAX, -DEFAULT_TAUZ_MAX,
-        DEFAULT_VTHETA_MIN,
+        T_MIN, -TAUX_MAX, -TAUY_MAX, -TAUZ_MAX, ATHETA_MIN
     ])
     ocp.constraints.ubu = np.array([
-        DEFAULT_T_MAX, DEFAULT_TAUX_MAX, DEFAULT_TAUY_MAX, DEFAULT_TAUZ_MAX,
-        DEFAULT_VTHETA_MAX,
+        T_MAX, TAUX_MAX, TAUY_MAX, TAUZ_MAX, ATHETA_MAX
     ])
     ocp.constraints.idxbu = np.array([0, 1, 2, 3, 4])
 
-    # ── State constraints: θ ∈ [0, s_max] ───────────────────────────────
-    ocp.constraints.lbx   = np.array([0.0])
-    ocp.constraints.ubx   = np.array([s_max])
-    ocp.constraints.idxbx = np.array([14])          # θ is state index 14
+    ocp.constraints.lbx = np.array([0.0, VTHETA_MIN])
+    ocp.constraints.ubx = np.array([s_max, VTHETA_MAX])
+    ocp.constraints.idxbx = np.array([14, 15])
 
-    # ── Nonlinear constraint: ‖q_r‖ = 1 (soft) ──────────────────────────
     qr = model.x[0:4]
     ocp.model.con_h_expr = norm_2(qr)
-    ocp.constraints.lh = np.array([0.99])           # soft lower
-    ocp.constraints.uh = np.array([1.01])           # soft upper
-
-    # Slack variables for the soft constraint
+    ocp.constraints.lh = np.array([0.99])
+    ocp.constraints.uh = np.array([1.01])
     ns = 1
     ocp.constraints.lsh = np.zeros(ns)
     ocp.constraints.ush = np.zeros(ns)
     ocp.constraints.idxsh = np.array(range(ns))
+    ocp.cost.zl = 100.0 * np.ones(ns)
+    ocp.cost.zu = 100.0 * np.ones(ns)
+    ocp.cost.Zl = 100.0 * np.ones(ns)
+    ocp.cost.Zu = 100.0 * np.ones(ns)
 
-    # L2 and L1 penalty on slack (make it soft)
-    ocp.cost.zl = 100.0 * np.ones(ns)              # L1 lower
-    ocp.cost.zu = 100.0 * np.ones(ns)              # L1 upper
-    ocp.cost.Zl = 100.0 * np.ones(ns)              # L2 lower
-    ocp.cost.Zu = 100.0 * np.ones(ns)              # L2 upper
-
-    # ── Initial state ────────────────────────────────────────────────────
     ocp.constraints.x0 = x0
 
-    # ── Solver options ───────────────────────────────────────────────────
-    ocp.solver_options.qp_solver        = "FULL_CONDENSING_HPIPM"
+    ocp.solver_options.qp_solver = "FULL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_cond_N = N_horizon // 4
-    ocp.solver_options.hessian_approx   = "GAUSS_NEWTON"
+    ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
     ocp.solver_options.regularize_method = "CONVEXIFY"
-    ocp.solver_options.integrator_type  = "ERK"
-    ocp.solver_options.nlp_solver_type  = "SQP_RTI"
-    ocp.solver_options.Tsim             = t_horizon / N_horizon
-    ocp.solver_options.tol              = 1e-4
-    ocp.solver_options.tf               = t_horizon
+    ocp.solver_options.integrator_type = "ERK"
+    ocp.solver_options.nlp_solver_type = "SQP_RTI"
+    ocp.solver_options.Tsim = t_horizon / N_horizon
+    ocp.solver_options.tol = 1e-4
+    ocp.solver_options.tf = t_horizon
 
     return ocp
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  Solver factory
-# ══════════════════════════════════════════════════════════════════════════════
-
-def build_dq_mpcc_solver(x0, N_prediction, t_prediction, s_max,
-                         gamma_pos, gamma_vel, gamma_quat,
-                         use_cython=True):
-    """Create, code-generate, compile and return the DQ-MPCC solver."""
+def build_dq_mpcc_solver(
+    x0, N_prediction, t_prediction, s_max,
+    gamma_pos, gamma_vel, gamma_quat,
+    use_cython=True, force_rebuild=False,
+):
+    """Build or reuse the canonical DQ-MPCC solver."""
     ocp = create_dq_mpcc_ocp_description(
         x0, N_prediction, t_prediction, s_max,
         gamma_pos, gamma_vel, gamma_quat,
@@ -235,23 +215,30 @@ def build_dq_mpcc_solver(x0, N_prediction, t_prediction, s_max,
 
     solver_json = os.path.join(
         os.path.dirname(ocp.code_export_directory),
-        'acados_ocp_' + model.name + '.json',
+        "acados_ocp_" + model.name + ".json",
     )
 
     if use_cython:
-        # Cython path has no build/generate flags — must remove stale code
-        if os.path.isdir(ocp.code_export_directory):
-            shutil.rmtree(ocp.code_export_directory)
-        if os.path.isfile(solver_json):
-            os.remove(solver_json)
-        AcadosOcpSolver.generate(ocp, json_file=solver_json)
-        AcadosOcpSolver.build(ocp.code_export_directory, with_cython=True)
-        acados_ocp_solver = AcadosOcpSolver.create_cython_solver(solver_json)
+        already_built = (
+            os.path.isdir(ocp.code_export_directory)
+            and os.path.isfile(solver_json)
+        )
+        if force_rebuild or not already_built:
+            if os.path.isdir(ocp.code_export_directory):
+                shutil.rmtree(ocp.code_export_directory)
+            if os.path.isfile(solver_json):
+                os.remove(solver_json)
+            AcadosOcpSolver.generate(ocp, json_file=solver_json)
+            AcadosOcpSolver.build(ocp.code_export_directory, with_cython=True)
+        else:
+            print(f"[SOLVER] Reusing cached build at {ocp.code_export_directory}")
+        solver = AcadosOcpSolver.create_cython_solver(solver_json)
     else:
-        # ctypes path: build=True + generate=True already force full rebuild
-        acados_ocp_solver = AcadosOcpSolver(
-            ocp, json_file=solver_json,
-            build=True, generate=True,
+        solver = AcadosOcpSolver(
+            ocp,
+            json_file=solver_json,
+            build=not (not force_rebuild and os.path.isfile(solver_json)),
+            generate=not (not force_rebuild and os.path.isfile(solver_json)),
         )
 
-    return acados_ocp_solver, ocp, model, f_system
+    return solver, ocp, model, f_system

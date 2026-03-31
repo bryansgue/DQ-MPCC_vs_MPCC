@@ -1,0 +1,67 @@
+{
+  "source": "mpcc_tuning_local_refresh",
+  "selected_on": "2026-03-29",
+  "notes": [
+    "Promoted from MPCC_baseline/tuning/best_weights_local.json after local MPCC refinement on the current manual gain set.",
+    "This refined set improves contouring, lag, and attitude error relative to the current MPCC manual baseline.",
+    "Kept as an explicit final artifact so downstream scripts can compare manual vs refined without depending on an evolving scratch file."
+  ],
+  "weights": {
+    "Q_ec": [
+      50.92689444397306,
+      24.217334854301466,
+      30.07110718743276
+    ],
+    "Q_el": [
+      3.6229850058362922,
+      4.099818572183272,
+      2.459532103085807
+    ],
+    "Q_q": [
+      1.0345976265944545,
+      0.517191636301155,
+      1.5130103971195739
+    ],
+    "U_mat": [
+      0.05,
+      70.0,
+      70.0,
+      70.0
+    ],
+    "Q_omega": [
+      0.02,
+      0.02,
+      0.1
+    ],
+    "Q_s": 7.719150052868153
+  },
+  "comparison_vs_manual": {
+    "manual": {
+      "rmse_contorno": 0.37602825608288887,
+      "rmse_lag": 0.8153220380679351,
+      "rmse_attitude": 1.2432818932022989,
+      "mean_vtheta": 5.139523292273193,
+      "mean_vpath_ratio": 0.870293546120852,
+      "effective_speed": 4.472893951403153,
+      "path_completed": 0.9997946733260169,
+      "solver_fail_ratio": 0.0
+    },
+    "refined": {
+      "rmse_contorno": 0.33199697671832296,
+      "rmse_lag": 0.47798679763093105,
+      "rmse_attitude": 1.2127022514082648,
+      "mean_vtheta": 4.618225573674087,
+      "mean_vpath_ratio": 0.8365720425441966,
+      "effective_speed": 3.8634784010983747,
+      "path_completed": 0.9998292344784129,
+      "solver_fail_ratio": 0.0
+    },
+    "improvement_percent": {
+      "rmse_contorno": 11.709566675452171,
+      "rmse_lag": 41.374478388488775,
+      "rmse_attitude": 2.459590376183362,
+      "effective_speed": -13.624636687699773,
+      "path_completed": 0.0034568250179808076
+    }
+  }
+}

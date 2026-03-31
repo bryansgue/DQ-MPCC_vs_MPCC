@@ -14,6 +14,8 @@ and both controller OCP files import ONLY from here.
 >>> Change parameters ONCE here and they propagate everywhere. <<<
 """
 
+import json
+from pathlib import Path
 import numpy as np
 
 
@@ -21,11 +23,11 @@ import numpy as np
 #  1. Initial conditions  (SAME for both controllers)
 # ═════════════════════════════════════════════════════════════════════════════
 
-P0     = np.array([0.0, 0.0, 6.0])          # position  [x, y, z]
+P0     = np.array([4, 0.0, 1])          # position  [x, y, z]
 Q0     = np.array([1.0, 0.0, 0.0, 0.0])     # quaternion [qw, qx, qy, qz]
 V0     = np.array([0.0, 0.0, 0.0])          # linear velocity  [m/s]
 W0     = np.array([0.0, 0.0, 0.0])          # angular velocity [rad/s]
-THETA0 = 0.0                                 # initial arc-length progress [m]
+THETA0 = 0.94                                # initial arc-length progress [m] — arc-length of path point closest to P0=[4,0,1]
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -37,163 +39,216 @@ THETA0 = 0.0                                 # initial arc-length progress [m]
 #     VALUE is used internally as speed-scaling factor.
 # ═════════════════════════════════════════════════════════════════════════════
 
-VALUE = 5
+
+
+TRAJ_VALUE = 15    # frequency scaling factor
 
 def trayectoria(t=None):
-    """Return the six trajectory lambdas (position + derivatives).
+    """Return 6 lambdas: (xd, yd, zd, xdp, ydp, zdp).
 
-    Returns
-    -------
-    xd, yd, zd       : callable(t) → float   position components
-    xd_p, yd_p, zd_p : callable(t) → float   d/dt of each component
+    Lissajous figure-8 trajectory within MuJoCo walls.
+    X: cx=2.5 ± 3.0  → [−0.5, 5.5]   (margen 2.5m a paredes)
+    Y: cy=0.0 ± 1.5  → [−1.5, 1.5]   (margen 0.5m a paredes)
+    Z: cz=1.2 ± 0.5  → [0.7, 1.7]    (dentro de paredes h=3m)
+    Relación freq X:Y = 1:2 → forma de 8 en plano XY
     """
-    v = VALUE
-    xd   = lambda t: 7.0 * np.sin(v * 0.04 * t) + 3
-    yd   = lambda t: 3.5 * np.sin(v * 0.08 * t)
-    zd   = lambda t: 1.5 * np.sin(v * 0.08 * t) + 6
+    v = TRAJ_VALUE
+    xd  = lambda t: 2.50 * np.sin(v * 0.04 * t) + 2.5
+    yd  = lambda t: 1.5 * np.sin(v * 0.08 * t)
+    zd  = lambda t: 0.5 * np.sin(v * 0.04 * t) + 1.5
+    xdp = lambda t: 2.5 * v * 0.04 * np.cos(v * 0.04 * t)
+    ydp = lambda t: 1.5 * v * 0.08 * np.cos(v * 0.08 * t)
+    zdp = lambda t: 0.5 * v * 0.04 * np.cos(v * 0.04 * t)
+    return xd, yd, zd, xdp, ydp, zdp
 
-    xd_p = lambda t: 7.0 * v * 0.04 * np.cos(v * 0.04 * t)
-    yd_p = lambda t: 3.5 * v * 0.08 * np.cos(v * 0.08 * t)
-    zd_p = lambda t: 1.5 * v * 0.08 * np.cos(v * 0.08 * t)
-    return xd, yd, zd, xd_p, yd_p, zd_p
 
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  3. Timing & MPC horizon
 # ═════════════════════════════════════════════════════════════════════════════
 
-T_FINAL      = 60       # [s]  maximum simulation time
+T_FINAL      = 85      # [s]  maximum simulation time
+TRAJECTORY_T_FINAL = 70 # [s]  parameter interval used to define the path geometry 63
 FREC         = 100      # [Hz] control frequency
 T_PREDICTION = 0.3      # [s]  MPC prediction horizon
-N_WAYPOINTS  = 30       # CasADi arc-length interpolation waypoints
+N_WAYPOINTS  = 160      # CasADi arc-length interpolation waypoints
+
+# Important:
+# - `T_FINAL` only changes how long the simulation is allowed to run.
+# - `TRAJECTORY_T_FINAL` changes the geometric path used to build the
+#   arc-length parameterisation. Changing it does change the OCP trajectory,
+#   so it requires rebuilding the compiled OCP once.
 
 # Arc-length limit [m].  None → full curve.
-S_MAX_MANUAL = 80
-
+S_MAX_MANUAL = 100
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  4. Control limits  (SHARED by BOTH controllers — production AND tuners)
 # ═════════════════════════════════════════════════════════════════════════════
+#
+# MPCC OCP note:
+# These limits are NUMERIC runtime parameters for the current MPCC pipeline.
+# They are used to set the OCP input bounds when the solver is initialised and,
+# if needed, can be updated without changing the symbolic cost structure.
+#
+# The associated progress-speed reference also enters the MPCC parameter vector
+# through:
+#   p[17] = vtheta_max
+# in `MPCC_baseline/ocp/mpcc_controller.py`.
 
 G = 9.81                # gravitational acceleration [m/s²]
 
 # Thrust  [N]
-T_MAX       = 10 * G    # ~98.1 N
-T_MIN       = 0.0
+T_MAX       = 10 * G    # ~98.1 N | editable without rebuilding the MPCC OCP
+T_MIN       = 0.0       # editable without rebuilding the MPCC OCP
 
 # Torques  [N·m]
-TAUX_MAX    = 0.5
-TAUY_MAX    = 0.5
-TAUZ_MAX    = 0.5
+TAUX_MAX    = 0.5       # editable without rebuilding the MPCC OCP
+TAUY_MAX    = 0.5       # editable without rebuilding the MPCC OCP
+TAUZ_MAX    = 0.5       # editable without rebuilding the MPCC OCP
 
 # Progress velocity  [m/s]
-VTHETA_MIN  = 0.0
-VTHETA_MAX  = 15
+VTHETA_MIN  = 0.0       # editable without rebuilding the MPCC OCP
+VTHETA_MAX  = 20         # editable without rebuilding the MPCC OCP | mapped to p[17]
+
+# Progress acceleration  [m/s²]
+ATHETA_MIN  = -25.0
+ATHETA_MAX  = 25.0
+
+# Attitude-reference construction for MPCC.
+# The desired quaternion is built from:
+#   - path tangent (heading)
+#   - path curvature + nominal speed (lateral acceleration demand)
+# instead of assuming roll = pitch = 0 everywhere.
+ATTITUDE_REF_SPEED = 15       # [m/s] nominal speed used for attitude reference
+ATTITUDE_REF_MAX_TILT_DEG = 60.0  # [deg] keep reference physically reasonable
 
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  5. Quadrotor physical parameters
 # ═════════════════════════════════════════════════════════════════════════════
 
-MASS = 1.0              # [kg]
-JXX  = 0.00305587       # [kg·m²]
-JYY  = 0.00159695
-JZZ  = 0.00159687
+MASS = 1.0380             # [kg]
+JXX  = 3.2086e-03       # [kg·m²]
+JYY  = 1.6731e-03
+JZZ  = 1.6730e-03
+
+
+# Repository root
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  6. Cost weights — DQ-MPCC
 #
-#     USE_TUNED_WEIGHTS_DQ = True  → load from best_weights.json
-#     USE_TUNED_WEIGHTS_DQ = False → use MANUAL values below
+#     Simple rule:
+#       - `USE_TUNED_WEIGHTS_DQ = True`  -> load JSON from tuning/
+#       - `USE_TUNED_WEIGHTS_DQ = False` -> use the manual values below
 # ═════════════════════════════════════════════════════════════════════════════
-
-import os as _os, json as _json
-
-# Workspace root = parent of config/
-_WORKSPACE_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
 
 USE_TUNED_WEIGHTS_DQ = True
 
-_dq_weights_path = _os.path.join(
-    _WORKSPACE_ROOT,
-    'DQ-MPCC_baseline', 'tuning', 'best_weights.json',
+# Active DQ set for experiments:
+# keep the refined translational/progress structure, but slightly increase the
+# rotation penalty to probe whether the external orientation RMSE of
+# Experiment 2 improves under the shared quaternion reference.
+DQ_WEIGHTS_PATH = PROJECT_ROOT / "DQ-MPCC_baseline" / "tuning" / "final_refined_oriented_weights.json"
+
+# Used when `USE_TUNED_WEIGHTS_DQ = False`, or if the JSON file is missing.
+DQ_MANUAL_WEIGHTS = dict(
+    Q_ec       = [40, 40, 40],
+    Q_el       = [3, 3, 3],
+    Q_phi      = [0.65, 0.65, 1.9],
+    U_mat      = [0.05, 70, 70, 70],
+    Q_omega    = [0.02, 0.02, 0.10],
+    Q_s        = 11
 )
 
-# ── Manual fallback (edit here when USE_TUNED_WEIGHTS_DQ = False) ────────
-_DQ_MANUAL_WEIGHTS = dict(
-    Q_phi      = [2.043287184439576, 13.372364599755707, 0.6571587126901631],
-    Q_ec       = [12.598105468469319, 3.777969151847432, 3.3410980401536166],
-    Q_el       = [2.32336746505148, 16.75639691546697, 1.0119359868077427],
-    U_mat      = [0.00883036003668909, 24.124142732497422, 72.86548918704212, 32.67238988214993],
-    Q_omega    = [0.03951996239989822, 0.032459290238729205, 0.045319866820168864],
-    Q_s        = 0.503816052969886
-)
-
-if USE_TUNED_WEIGHTS_DQ and _os.path.isfile(_dq_weights_path):
-    with open(_dq_weights_path) as _f:
-        _dq_w = _json.load(_f)['weights']
-    DQ_Q_PHI   = _dq_w['Q_phi']
-    DQ_Q_EC    = _dq_w['Q_ec']
-    DQ_Q_EL    = _dq_w['Q_el']
-    DQ_U_MAT   = _dq_w['U_mat']
-    DQ_Q_OMEGA = _dq_w['Q_omega']
-    DQ_Q_S     = _dq_w['Q_s']
-    print(f"[experiment_config] ✓ DQ-MPCC weights loaded from {_dq_weights_path}")
+if USE_TUNED_WEIGHTS_DQ and DQ_WEIGHTS_PATH.is_file():
+    with DQ_WEIGHTS_PATH.open(encoding="utf-8") as f:
+        DQ_WEIGHTS = json.load(f)["weights"]
+    print(f"[experiment_config] ✓ DQ-MPCC weights loaded from {DQ_WEIGHTS_PATH}")
 else:
     if USE_TUNED_WEIGHTS_DQ:
-        print(f"[experiment_config] ⚠ {_dq_weights_path} not found → manual defaults")
-    DQ_Q_PHI   = _DQ_MANUAL_WEIGHTS['Q_phi']
-    DQ_Q_EC    = _DQ_MANUAL_WEIGHTS['Q_ec']
-    DQ_Q_EL    = _DQ_MANUAL_WEIGHTS['Q_el']
-    DQ_U_MAT   = _DQ_MANUAL_WEIGHTS['U_mat']
-    DQ_Q_OMEGA = _DQ_MANUAL_WEIGHTS['Q_omega']
-    DQ_Q_S     = _DQ_MANUAL_WEIGHTS['Q_s']
+        print(f"[experiment_config] ⚠ {DQ_WEIGHTS_PATH} not found -> manual defaults")
+    DQ_WEIGHTS = DQ_MANUAL_WEIGHTS
+
+DQ_Q_PHI   = DQ_WEIGHTS["Q_phi"]
+DQ_Q_EC    = DQ_WEIGHTS["Q_ec"]
+DQ_Q_EL    = DQ_WEIGHTS["Q_el"]
+DQ_U_MAT   = DQ_WEIGHTS["U_mat"]
+DQ_Q_OMEGA = DQ_WEIGHTS["Q_omega"]
+DQ_Q_S     = DQ_WEIGHTS["Q_s"]
+DQ_Q_ATHETA = 0.20
 
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  7. Cost weights — MPCC
 #
-#     USE_TUNED_WEIGHTS_MPCC = True  → load from best_weights.json
-#     USE_TUNED_WEIGHTS_MPCC = False → use MANUAL values below
+#     Simple rule:
+#       - `USE_TUNED_WEIGHTS_MPCC = True`  -> load JSON from tuning/
+#       - `USE_TUNED_WEIGHTS_MPCC = False` -> use the manual values below
+#
+#     These weights are runtime parameters of the canonical MPCC OCP:
+#       p[0:3]   = MPCC_Q_EC
+#       p[3:6]   = MPCC_Q_EL
+#       p[6:9]   = MPCC_Q_Q
+#       p[9:13]  = MPCC_U_MAT
+#       p[13:16] = MPCC_Q_OMEGA
+#       p[16]    = MPCC_Q_S
+#
+#     Changing these values does NOT require rebuilding the MPCC OCP.
+#     They are injected at runtime through `solver.set(stage, "p", p_vec)`.
 # ═════════════════════════════════════════════════════════════════════════════
 
-USE_TUNED_WEIGHTS_MPCC = True
+USE_TUNED_WEIGHTS_MPCC = False
+# Active MPCC set for experiments:
+# keep the local-refined tracking/orientation structure, but slightly relax the
+# high-speed progress incentive so the baseline does not plateau too early in
+# the velocity sweep.
+MPCC_WEIGHTS_PATH = PROJECT_ROOT / "MPCC_baseline" / "tuning" / "final_refined_relaxed_weights.json"
 
-_mpcc_weights_path = _os.path.join(
-    _WORKSPACE_ROOT,
-    'MPCC_baseline', 'tuning', 'best_weights.json',
+# Used when `USE_TUNED_WEIGHTS_MPCC = False`, or if the JSON file is missing.
+# Main manual reference for the current MPCC baseline experiments.
+# Previous MPCC manual weights kept here for quick rollback if needed.
+MPCC_MANUAL_WEIGHTS_PREV = dict(
+    Q_ec       = [25, 25, 25],
+    Q_el       = [3, 3, 3],
+    Q_q        = [0.5, 0.5, 1.9],
+    U_mat      = [0.05, 70, 70, 70],
+    Q_omega    = [0.02, 0.02, 0.10],
+    Q_s        = 15
 )
 
-# ── Manual fallback (edit here when USE_TUNED_WEIGHTS_MPCC = False) ──────
-_MPCC_MANUAL_WEIGHTS = dict(
-    Q_ec    = [1.4093957442618654, 27.817042827694642, 24.48548392738109],
-    Q_el    = [5.9582011063084055, 23.795100612706815, 4.161494597550919],
-    Q_q     = [0.1343138656640675, 0.432728076186103, 2.1883004979219733],
-    U_mat   = [0.012397089263446425, 247.4781149655814, 271.0477082160289, 420.10767213246106],
-    Q_omega = [0.10042795453551734, 0.08553884748528592, 0.05216153572943215],
-    Q_s     = 0.5004891759540515,
+# Temporary MPCC manual weights matched to the current DQ tuning so you can
+# inspect both baselines under the same gain pattern.
+MPCC_MANUAL_WEIGHTS = dict(
+    Q_ec       = [40, 40, 40],
+    Q_el       = [3, 3, 3],
+    Q_q        = [0.65, 0.65, 1.9],
+    U_mat      = [0.05, 70, 70, 70],
+    Q_omega    = [0.02, 0.02, 0.10],
+    Q_s        = 11
 )
 
-if USE_TUNED_WEIGHTS_MPCC and _os.path.isfile(_mpcc_weights_path):
-    with open(_mpcc_weights_path) as _f:
-        _mpcc_w = _json.load(_f)['weights']
-    MPCC_Q_EC    = _mpcc_w['Q_ec']
-    MPCC_Q_EL    = _mpcc_w['Q_el']
-    MPCC_Q_Q     = _mpcc_w['Q_q']
-    MPCC_U_MAT   = _mpcc_w['U_mat']
-    MPCC_Q_OMEGA = _mpcc_w['Q_omega']
-    MPCC_Q_S     = _mpcc_w['Q_s']
-    print(f"[experiment_config] ✓ MPCC weights loaded from {_mpcc_weights_path}")
+# Fixed penalty for the new progress-acceleration input a_theta.
+MPCC_Q_ATHETA = 0.20
+
+if USE_TUNED_WEIGHTS_MPCC and MPCC_WEIGHTS_PATH.is_file():
+    with MPCC_WEIGHTS_PATH.open(encoding="utf-8") as f:
+        MPCC_WEIGHTS = json.load(f)["weights"]
+    print(f"[experiment_config] ✓ MPCC weights loaded from {MPCC_WEIGHTS_PATH}")
 else:
     if USE_TUNED_WEIGHTS_MPCC:
-        print(f"[experiment_config] ⚠ {_mpcc_weights_path} not found → manual defaults")
-    MPCC_Q_EC    = _MPCC_MANUAL_WEIGHTS['Q_ec']
-    MPCC_Q_EL    = _MPCC_MANUAL_WEIGHTS['Q_el']
-    MPCC_Q_Q     = _MPCC_MANUAL_WEIGHTS['Q_q']
-    MPCC_U_MAT   = _MPCC_MANUAL_WEIGHTS['U_mat']
-    MPCC_Q_OMEGA = _MPCC_MANUAL_WEIGHTS['Q_omega']
-    MPCC_Q_S     = _MPCC_MANUAL_WEIGHTS['Q_s']
+        print(f"[experiment_config] ⚠ {MPCC_WEIGHTS_PATH} not found -> manual defaults")
+    MPCC_WEIGHTS = MPCC_MANUAL_WEIGHTS
+
+MPCC_Q_EC    = MPCC_WEIGHTS["Q_ec"]      # p[0:3]   | runtime-editable, no OCP rebuild
+MPCC_Q_EL    = MPCC_WEIGHTS["Q_el"]      # p[3:6]   | runtime-editable, no OCP rebuild
+MPCC_Q_Q     = MPCC_WEIGHTS["Q_q"]       # p[6:9]   | runtime-editable, no OCP rebuild
+MPCC_U_MAT   = MPCC_WEIGHTS["U_mat"]     # p[9:13]  | runtime-editable, no OCP rebuild
+MPCC_Q_OMEGA = MPCC_WEIGHTS["Q_omega"]   # p[13:16] | runtime-editable, no OCP rebuild
+MPCC_Q_S     = MPCC_WEIGHTS["Q_s"]       # p[16]    | runtime-editable, no OCP rebuild
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -216,10 +271,10 @@ TUNING_S_MAX_MANUAL = None     # None → use full curve length
 #    The tuner's objective is the MEAN over all velocities, producing a
 #    single robust weight set that generalises across the velocity sweep.
 #    Pick ≥ 3 velocities spanning the intended sweep range.
-TUNING_VELOCITIES = [5, 10, 16]   # [m/s] — low, mid, high
+TUNING_VELOCITIES = [5, 10, 16]   # [m/s] — multi-velocity (paper Eq.11)
 
 # ── Optuna / optimiser settings ──────────────────────────────────────────
-DEFAULT_N_TRIALS    = 50       # Optuna trials per run
+DEFAULT_N_TRIALS    = 200       # Optuna trials per run
 DEFAULT_SAMPLER     = 'tpe'    # 'tpe' or 'cmaes'
 N_STARTUP_TRIALS    = 10       # TPE random warmup trials
 OPTUNA_SEED         = 42       # reproducibility
@@ -234,7 +289,7 @@ W_INCOMPLETE        = 1000.0
 #   Term B: W_VEL  · (v_max − v̄_θ) / v_max  penalises low mean speed
 #   T_ref = s_max / VTHETA_MAX
 W_TIME              = 0.5
-W_VEL               = 2.0
+W_VEL               = 1.0
 
 # Isotropy penalty (prevent axis-neglect)
 #   W_ISOTROPY · (max(rmse_xyz) / min(rmse_xyz) − 1)
@@ -244,6 +299,21 @@ W_ISOTROPY          = 0.3
 #   W_CONTOUR · rmse_contorno
 W_CONTOUR           = 3.0
 
+# Additional behaviour penalties for production-aligned tuning
+W_LAG               = 3.0
+W_ATT               = 1.5
+W_OMEGA             = 0.05
+W_EFFORT            = 0.1
+W_DU                = 0.2
+W_SAT               = 25.0
+W_PEAK              = 4.0
+W_FAIL              = 500.0
+W_VPATH             = 1.5
+W_VPATH_HARD        = 400.0
+VPATH_RATIO_MIN     = 0.75
+W_SAT_HARD          = 400.0
+SAT_RATIO_MAX       = 0.03
+
 # ── Search-space bounds ──────────────────────────────────────────────────
 #    Each entry: (low, high, log_scale)
 
@@ -252,8 +322,8 @@ Q_EC_RANGE    = (1.0,  30.0,  True)
 # Lag error  Q_el  [3]
 Q_EL_RANGE    = (0.5,  30.0,  True)
 # Control effort  U_mat
-U_T_RANGE     = (0.005, 0.5,  True)    # thrust weight
-U_TAU_RANGE   = (20,   800,   True)    # torque weights (τx, τy, τz)
+U_T_RANGE     = (0.02, 1.0,   True)    # thrust weight
+U_TAU_RANGE   = (50,   1200,  True)    # torque weights (τx, τy, τz)
 # Angular velocity  Q_omega  [3]
 Q_OMEGA_RANGE = (0.01,  2.0,  True)
 # Progress speed  Q_s

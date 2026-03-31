@@ -22,8 +22,9 @@ from config.experiment_config import (
     P0, Q0,              # nominal initial conditions
 )
 
-# Re-export S_MAX with the name consumers expect
-S_MAX = S_MAX_MANUAL if S_MAX_MANUAL is not None else 80
+# Re-export S_MAX with the name consumers expect.
+# `None` means: let the runner use the full trajectory length computed at runtime.
+S_MAX = S_MAX_MANUAL
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -32,16 +33,18 @@ S_MAX = S_MAX_MANUAL if S_MAX_MANUAL is not None else 80
 
 # ── Velocity ─────────────────────────────────────────────────────────────
 #    Fixed moderately-fast velocity [m/s].  Change this freely.
-VELOCITY = 10
+VELOCITY = 12
 
 # ── Monte Carlo ──────────────────────────────────────────────────────────
-N_RUNS = 100            # total number of random-pose runs per controller
+N_RUNS = 10             # total number of random-pose runs per controller
 
 # ── Initial-pose perturbations ───────────────────────────────────────────
 #    Position:    p = p0 + δ,     δ ~ N(0, σ_p²·I₃)            [m]
-#    Orientation: q = δq ⊗ q0,   ‖Log(δq)‖ ~ U(0, σ_q)        [rad]
-SIGMA_P = 2.0           # position std per axis [m]  (large — tests robustness)
-SIGMA_Q = 0.5           # max rotation perturbation [rad] ≈ 28.6°
+#    Orientation: yaw-only perturbation around hover / nominal attitude.
+#    Roll and pitch are kept at the nominal hover attitude; only heading varies.
+SIGMA_P = 0.60          # position std per axis [m] for moderate Monte Carlo spread
+SIGMA_Q = 0.18          # max yaw perturbation [rad] ≈ 10.3°
+MAX_POS_OFFSET_NORM = 1.20  # [m] hard cap on ||p0_pert - P0|| to avoid extreme outliers
 
 # ── Random seed ──────────────────────────────────────────────────────────
 SEED = 2026

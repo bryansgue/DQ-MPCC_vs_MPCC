@@ -196,8 +196,25 @@ def _piecewise_linear(s_sym, s_wp, values_wp):
     return expr
 
 
+def _bspline_scalar(name, s_sym, s_wp, values_wp):
+    """Build a clamped scalar bspline interpolant.
+
+    CasADi's bspline LUT gives a smoother reference than the manual piecewise
+    linear chain, which is helpful when the OCP reasons over future points near
+    the end of the active path.
+    """
+    s_c = ca.fmin(ca.fmax(s_sym, float(s_wp[0])), float(s_wp[-1]))
+    lut = ca.interpolant(
+        name,
+        "bspline",
+        [np.asarray(s_wp, dtype=float)],
+        np.asarray(values_wp, dtype=float).reshape(-1),
+    )
+    return lut(s_c)
+
+
 def create_position_interpolator_casadi(s_waypoints, pos_waypoints):
-    """Build  γ_pos(θ) : ℝ → ℝ³  (piecewise-linear, CasADi symbolic).
+    """Build  γ_pos(θ) : ℝ → ℝ³  (bspline, CasADi symbolic).
 
     Parameters
     ----------
@@ -209,14 +226,14 @@ def create_position_interpolator_casadi(s_waypoints, pos_waypoints):
     gamma_pos : casadi.Function  (scalar θ) → (3,) position vector.
     """
     s = MX.sym('s')
-    px = _piecewise_linear(s, s_waypoints, pos_waypoints[0, :])
-    py = _piecewise_linear(s, s_waypoints, pos_waypoints[1, :])
-    pz = _piecewise_linear(s, s_waypoints, pos_waypoints[2, :])
+    px = _bspline_scalar('gamma_pos_x', s, s_waypoints, pos_waypoints[0, :])
+    py = _bspline_scalar('gamma_pos_y', s, s_waypoints, pos_waypoints[1, :])
+    pz = _bspline_scalar('gamma_pos_z', s, s_waypoints, pos_waypoints[2, :])
     return Function('gamma_pos', [s], [vertcat(px, py, pz)])
 
 
 def create_tangent_interpolator_casadi(s_waypoints, tang_waypoints):
-    """Build  γ_vel(θ) : ℝ → ℝ³  (piecewise-linear + unit-normalisation, CasADi).
+    """Build  γ_vel(θ) : ℝ → ℝ³  (bspline + unit-normalisation, CasADi).
 
     Parameters
     ----------
@@ -228,15 +245,15 @@ def create_tangent_interpolator_casadi(s_waypoints, tang_waypoints):
     gamma_vel : casadi.Function  (scalar θ) → (3,) unit tangent vector.
     """
     s = MX.sym('s')
-    tx = _piecewise_linear(s, s_waypoints, tang_waypoints[0, :])
-    ty = _piecewise_linear(s, s_waypoints, tang_waypoints[1, :])
-    tz = _piecewise_linear(s, s_waypoints, tang_waypoints[2, :])
+    tx = _bspline_scalar('gamma_tan_x', s, s_waypoints, tang_waypoints[0, :])
+    ty = _bspline_scalar('gamma_tan_y', s, s_waypoints, tang_waypoints[1, :])
+    tz = _bspline_scalar('gamma_tan_z', s, s_waypoints, tang_waypoints[2, :])
     tn = ca.sqrt(tx**2 + ty**2 + tz**2 + 1e-10)
     return Function('gamma_vel', [s], [vertcat(tx / tn, ty / tn, tz / tn)])
 
 
 def create_quat_interpolator_casadi(s_waypoints, quat_waypoints):
-    """Build  γ_quat(θ) : ℝ → ℝ⁴  (linear SLERP-lite + normalisation, CasADi).
+    """Build  γ_quat(θ) : ℝ → ℝ⁴  (bspline components + normalisation, CasADi).
 
     Performs component-wise linear interpolation followed by normalisation.
     Hemisphere consistency must be ensured *before* calling this function
@@ -252,10 +269,10 @@ def create_quat_interpolator_casadi(s_waypoints, quat_waypoints):
     gamma_quat : casadi.Function  (scalar θ) → (4,) unit quaternion.
     """
     s  = MX.sym('s')
-    qw = _piecewise_linear(s, s_waypoints, quat_waypoints[0, :])
-    qx = _piecewise_linear(s, s_waypoints, quat_waypoints[1, :])
-    qy = _piecewise_linear(s, s_waypoints, quat_waypoints[2, :])
-    qz = _piecewise_linear(s, s_waypoints, quat_waypoints[3, :])
+    qw = _bspline_scalar('gamma_quat_w', s, s_waypoints, quat_waypoints[0, :])
+    qx = _bspline_scalar('gamma_quat_x', s, s_waypoints, quat_waypoints[1, :])
+    qy = _bspline_scalar('gamma_quat_y', s, s_waypoints, quat_waypoints[2, :])
+    qz = _bspline_scalar('gamma_quat_z', s, s_waypoints, quat_waypoints[3, :])
     qn = ca.sqrt(qw**2 + qx**2 + qy**2 + qz**2 + 1e-10)
     return Function('gamma_quat', [s], [vertcat(qw/qn, qx/qn, qy/qn, qz/qn)])
 

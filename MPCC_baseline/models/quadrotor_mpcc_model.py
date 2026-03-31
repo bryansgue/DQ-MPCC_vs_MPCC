@@ -1,10 +1,12 @@
 """
-Quadrotor 6-DOF model augmented with arc-length state θ for MPCC.
+Quadrotor 6-DOF model augmented with arc-length progress states for MPCC.
 
-State  x ∈ ℝ¹⁴ = [p(3), v(3), q(4), ω(3), θ]
-Input  u ∈ ℝ⁵  = [T, τx, τy, τz, v_θ]
+State  x ∈ ℝ¹⁵ = [p(3), v(3), q(4), ω(3), θ, v_θ]
+Input  u ∈ ℝ⁵  = [T, τx, τy, τz, a_θ]
 
-The extra dynamics are simply  θ̇ = v_θ.
+The extra dynamics are:
+  θ̇   = v_θ
+  v̇_θ = a_θ
 
 Returns an AcadosModel together with CasADi functions for
 simulation (f_system) and analysis (f_x, g_x).
@@ -39,7 +41,7 @@ def f_system_model_mpcc():
 
     Returns
     -------
-    model    : AcadosModel           – 14-state / 5-control model (no params).
+    model    : AcadosModel           – 15-state / 5-control model (no params).
     f_system : casadi.Function(x, u) → ẋ  – continuous dynamics.
     f_x      : casadi.Function(x)    → f₀  – drift (u = 0).
     g_x      : casadi.Function(x)    → ∂f/∂u  – input matrix.
@@ -49,20 +51,22 @@ def f_system_model_mpcc():
     e3 = MX([0, 0, 1])
     g  = G
 
-    # ── States (14) ──────────────────────────────────────────────────────
+    # ── States (15) ──────────────────────────────────────────────────────
     p1 = MX.sym('p1');  p2 = MX.sym('p2');  p3 = MX.sym('p3')
     v1 = MX.sym('v1');  v2 = MX.sym('v2');  v3 = MX.sym('v3')
     q0 = MX.sym('q0');  q1 = MX.sym('q1');  q2 = MX.sym('q2');  q3 = MX.sym('q3')
     w1 = MX.sym('w1');  w2 = MX.sym('w2');  w3 = MX.sym('w3')
     theta = MX.sym('theta')
+    v_theta = MX.sym('v_theta')
     x = vertcat(p1, p2, p3, v1, v2, v3,
                 q0, q1, q2, q3, w1, w2, w3, theta)
+    x = vertcat(x, v_theta)
 
     # ── Controls (5) ─────────────────────────────────────────────────────
     Tt      = MX.sym('Tt')
     tau1    = MX.sym('tau1');  tau2 = MX.sym('tau2');  tau3 = MX.sym('tau3')
-    v_theta = MX.sym('v_theta')
-    u = vertcat(Tt, tau1, tau2, tau3, v_theta)
+    a_theta = MX.sym('a_theta')
+    u = vertcat(Tt, tau1, tau2, tau3, a_theta)
 
     # ── State derivatives (symbolic, for implicit form) ──────────────────
     p1_p = MX.sym('p1_p');  p2_p = MX.sym('p2_p');  p3_p = MX.sym('p3_p')
@@ -71,8 +75,9 @@ def f_system_model_mpcc():
     q2_p = MX.sym('q2_p');  q3_p = MX.sym('q3_p')
     w1_p = MX.sym('w1_p');  w2_p = MX.sym('w2_p');  w3_p = MX.sym('w3_p')
     theta_p = MX.sym('theta_p')
+    v_theta_p = MX.sym('v_theta_p')
     x_p = vertcat(p1_p, p2_p, p3_p, v1_p, v2_p, v3_p,
-                  q0_p, q1_p, q2_p, q3_p, w1_p, w2_p, w3_p, theta_p)
+                  q0_p, q1_p, q2_p, q3_p, w1_p, w2_p, w3_p, theta_p, v_theta_p)
 
     # ── Dynamics ─────────────────────────────────────────────────────────
     quat = vertcat(q0, q1, q2, q3)
@@ -90,8 +95,9 @@ def f_system_model_mpcc():
     dq     = quat_p(quat, w)
     dw     = inv(I_inertia) @ (vertcat(tau1, tau2, tau3) - cross(w, I_inertia @ w))
     dtheta = v_theta                            # θ̇ = v_θ
+    dv_theta = a_theta                          # v̇_θ = a_θ
 
-    f_expl = vertcat(dp, dv, dq, dw, dtheta)
+    f_expl = vertcat(dp, dv, dq, dw, dtheta, dv_theta)
 
     # ── Auxiliary CasADi functions ───────────────────────────────────────
     u_zero   = MX.zeros(u.size1(), 1)

@@ -39,25 +39,25 @@ THETA0 = 0.0
 
 
 # Timing
-T_FINAL = 60          # upper-bound simulation duration [s] — loop exits early when θ >= S_MAX
-T_TRAJ_BUILD = 80     # time used ONLY to build arc-length parameterisation [s]
-                       # must satisfy: arc_length(T_TRAJ_BUILD) >= S_MAX_MANUAL * 1.2
-                       # TRAJ_VALUE=15 → avg speed ~1.67 m/s → 80s → ~134m > 120m ✓
+# ── High-speed config (round 3 tuning: 5–20 m/s) ─────────────────────────────
+# At 20 m/s one figure-8 loop (≈18m) takes <1s → need multiple loops.
+# S_MAX = 60m ≈ 3 loops — enough to evaluate sustained high-speed tracking.
+# T_TRAJ_BUILD must give arc ≥ S_MAX*1.2 = 72m.  At ~1.67 m/s → need ≥43s.
+T_FINAL = 30          # upper-bound [s] — (60m @ 5 m/s = 12s; @ 20 m/s = 3s)
+T_TRAJ_BUILD = 50     # [s] → ~83m arc > 72m ✓
 FREC = 100
 T_PREDICTION = 0.2
-N_WAYPOINTS = 30      # waypoints for CasADi interpolation (accuracy vs compile time)
-S_MAX_MANUAL = 100.0   # target path length [m] — drone stops when θ reaches this
+N_WAYPOINTS = 40      # more waypoints for 72m of path (was 20 for 24m)
+S_MAX_MANUAL = 60.0   # [m] — ~3 figure-8 loops for high-speed evaluation
 
 
-# Limits
-# Mirrored from NMPC_baseline/config/experiment_config.py for the
-# rate-controlled action space.
+# Limits — acrobatic regime for ≥15 m/s flight
 G = 9.81
 T_MIN = 0.0
-T_MAX = 3.0 * G
-W_MAX = 3.0
+T_MAX = 5.0 * G       # [N]      5g max thrust — acrobatic headroom
+W_MAX = 20.0           # [rad/s]  20 rad/s ≈ full acrobatic angular rate
 VTHETA_MIN = 0.0
-VTHETA_MAX = 20
+VTHETA_MAX = 10      # [m/s]    headroom above 15 m/s target
 
 
 # Physical parameters
@@ -70,13 +70,13 @@ TAU_RC = 0.03
 # These are intentionally local to this pipeline. The torque-based MPCC tuned
 # weights from MPCC_baseline are not appropriate for a body-rate-controlled
 # plant with first-order rate dynamics.
-MPCC_Q_EC = [45.0, 45.0, 55.0]
-MPCC_Q_EL = [18.0, 18.0, 22.0]
-MPCC_Q_Q = [3.0, 3.0, 1.5]
-MPCC_Q_OMEGA = [0.12, 0.12, 0.08]
-MPCC_Q_S = 0.5
+# Round-2 bilevel tuning result — trial #96, J_multi=32.24
+# v̄θ ≈ 3.3–4.0 m/s, RMSE_c ≈ 12–14 cm, path 100%
+MPCC_Q_EC       = [50.85580056256094, 50.813767399692967, 274.37361520466055]
+MPCC_Q_EL       = [183.17397384681195, 80.9436746714794, 78.0862549670832]
+MPCC_Q_Q        = [0.10976784589628846, 0.10754075088677592, 0.9804324408870685]
+MPCC_Q_OMEGA = [0.12, 0.12, 0.08]   # not tuned (removed from bilevel)
+MPCC_Q_S   = 1.853716595168155
 
-# Dedicated rate-control effort weights.
-# Keep rates relatively cheap so the optimiser can actually steer the vehicle
-# onto the path; thrust is still penalised around hover in the OCP.
-MPCC_RATE_U_MAT = [1.0, 1.5, 1.5, 1.0]
+# Rate-control effort weights (tuned round 2)
+MPCC_RATE_U_MAT = [0.15266200900271537, 0.20681449138135174, 0.2664526664190134, 0.4855109861396445]

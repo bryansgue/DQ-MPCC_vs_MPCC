@@ -18,14 +18,19 @@ import os, sys
 import numpy as np
 from scipy.io import loadmat
 
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/mpl")
+
 # ── Paths ────────────────────────────────────────────────────────────────────
 _SCRIPT = os.path.dirname(os.path.abspath(__file__))
 _ROOT   = os.path.dirname(_SCRIPT)
-_DATA   = os.path.join(_ROOT, 'results', 'experiment3', 'montecarlo_data.mat')
-_OUT    = os.path.join(_ROOT, 'results', 'experiment3')
-os.makedirs(_OUT, exist_ok=True)
-
 sys.path.insert(0, _ROOT)
+from config.result_paths import experiment_dirs
+
+_EXP3_DIR = experiment_dirs('experiment3')
+_DATA   = os.path.join(str(_EXP3_DIR['data']), 'montecarlo_data.mat')
+_OUT    = str(_EXP3_DIR['figures'])
+_LEGACY_DATA = os.path.join(_ROOT, 'results', 'experiment3', 'montecarlo_data.mat')
+os.makedirs(_OUT, exist_ok=True)
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -63,9 +68,12 @@ COL_W = 3.5   # IEEEtran single column [in]
 
 def _load():
     if not os.path.isfile(_DATA):
-        print(f"[ERROR] Data file not found: {_DATA}")
-        print(f"        Run 'python scripts/run_experiment3.py' first.")
-        sys.exit(1)
+        if not os.path.isfile(_LEGACY_DATA):
+            print(f"[ERROR] Data file not found: {_DATA}")
+            print(f"        Run 'python results/experiment3/scripts/run_experiment3.py' first.")
+            sys.exit(1)
+        d = loadmat(_LEGACY_DATA, squeeze_me=True)
+        return d
     d = loadmat(_DATA, squeeze_me=True)
     return d
 
@@ -91,7 +99,7 @@ def fig_boxplots(d):
         base_vals = _get(d, 'base', key)
 
         bp = ax.boxplot([dq_vals, base_vals],
-                        labels=['DQ', 'Base'],
+                        tick_labels=['DQ', 'Base'],
                         patch_artist=True,
                         widths=0.5,
                         medianprops=dict(color='black', linewidth=1.2),
@@ -144,7 +152,7 @@ def fig_control_effort(d):
 
     fig, ax = plt.subplots(figsize=(COL_W, 2.2))
     bp = ax.boxplot([dq_e, base_e],
-                    labels=['DQ-MPCC', 'Baseline'],
+                    tick_labels=['DQ-MPCC', 'Baseline'],
                     patch_artist=True, widths=0.4,
                     medianprops=dict(color='black', linewidth=1.2))
     bp['boxes'][0].set_facecolor(C_DQ)
@@ -293,7 +301,7 @@ def fig_summary(d):
     ax = axes[0, 1]
     dq_ec   = _get(d, 'dq', 'rmse_ec')
     base_ec = _get(d, 'base', 'rmse_ec')
-    bp = ax.boxplot([dq_ec, base_ec], labels=['DQ', 'Base'],
+    bp = ax.boxplot([dq_ec, base_ec], tick_labels=['DQ', 'Base'],
                     patch_artist=True, widths=0.4,
                     medianprops=dict(color='black', linewidth=1))
     bp['boxes'][0].set_facecolor(C_DQ);  bp['boxes'][0].set_alpha(0.5)
@@ -304,7 +312,7 @@ def fig_summary(d):
     ax = axes[0, 2]
     dq_ori   = _get(d, 'dq', 'rmse_ori')
     base_ori = _get(d, 'base', 'rmse_ori')
-    bp = ax.boxplot([dq_ori, base_ori], labels=['DQ', 'Base'],
+    bp = ax.boxplot([dq_ori, base_ori], tick_labels=['DQ', 'Base'],
                     patch_artist=True, widths=0.4,
                     medianprops=dict(color='black', linewidth=1))
     bp['boxes'][0].set_facecolor(C_DQ);  bp['boxes'][0].set_alpha(0.5)
@@ -327,7 +335,7 @@ def fig_summary(d):
     ax = axes[1, 1]
     dq_e   = _get(d, 'dq', 'ctrl_effort')
     base_e = _get(d, 'base', 'ctrl_effort')
-    bp = ax.boxplot([dq_e, base_e], labels=['DQ', 'Base'],
+    bp = ax.boxplot([dq_e, base_e], tick_labels=['DQ', 'Base'],
                     patch_artist=True, widths=0.4,
                     medianprops=dict(color='black', linewidth=1))
     bp['boxes'][0].set_facecolor(C_DQ);  bp['boxes'][0].set_alpha(0.5)
@@ -401,6 +409,15 @@ def fig_3d_trajectories(d):
                 out.append(arr.T)
         return out
 
+    def _trim_large_jumps(traj, max_jump=2.5):
+        if traj.shape[1] < 2:
+            return traj
+        jumps = np.linalg.norm(np.diff(traj, axis=1), axis=0)
+        bad = np.where(jumps > max_jump)[0]
+        if bad.size == 0:
+            return traj
+        return traj[:, :bad[0] + 1]
+
     dq_trajs   = _unpack(dq_traj_raw)
     base_trajs = _unpack(base_traj_raw)
 
@@ -425,6 +442,7 @@ def fig_3d_trajectories(d):
 
         # All trajectories
         for traj in trajs:
+            traj = _trim_large_jumps(traj)
             ax.plot(traj[0], traj[1], traj[2],
                     color=c_traj, lw=0.35, alpha=0.35)
             # Mark start point
@@ -459,6 +477,88 @@ def fig_3d_trajectories(d):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+#  Figure 8 — XY / XZ projections with initial points
+# ═════════════════════════════════════════════════════════════════════════════
+
+def fig_planar_projections(d):
+    ref_x = np.atleast_1d(d.get('ref_x', np.array([]))).astype(float)
+    ref_y = np.atleast_1d(d.get('ref_y', np.array([]))).astype(float)
+    ref_z = np.atleast_1d(d.get('ref_z', np.array([]))).astype(float)
+    if ref_x.size == 0:
+        print("  ⚠ fig_mc_planar: no reference path in data — skipping")
+        return
+
+    dq_traj_raw   = d.get('dq_trajectories', np.array([]))
+    base_traj_raw = d.get('base_trajectories', np.array([]))
+
+    def _unpack(raw):
+        out = []
+        raw = np.atleast_1d(raw)
+        for item in raw:
+            arr = np.atleast_2d(item).astype(float)
+            if arr.shape[0] == 3:
+                out.append(arr)
+            elif arr.shape[1] == 3:
+                out.append(arr.T)
+        return out
+
+    def _trim_large_jumps(traj, max_jump=2.5):
+        if traj.shape[1] < 2:
+            return traj
+        jumps = np.linalg.norm(np.diff(traj, axis=1), axis=0)
+        bad = np.where(jumps > max_jump)[0]
+        if bad.size == 0:
+            return traj
+        return traj[:, :bad[0] + 1]
+
+    dq_trajs   = _unpack(dq_traj_raw)
+    base_trajs = _unpack(base_traj_raw)
+    if len(dq_trajs) == 0 and len(base_trajs) == 0:
+        print("  ⚠ fig_mc_planar: no trajectories in data — skipping")
+        return
+
+    fig, axes = plt.subplots(2, 2, figsize=(COL_W * 2, 4.2))
+    panels = [
+        (axes[0, 0], base_trajs, 'Baseline MPCC', 'xy'),
+        (axes[0, 1], dq_trajs,   'DQ-MPCC',       'xy'),
+        (axes[1, 0], base_trajs, 'Baseline MPCC', 'xz'),
+        (axes[1, 1], dq_trajs,   'DQ-MPCC',       'xz'),
+    ]
+
+    for ax, trajs, title, plane in panels:
+        if plane == 'xy':
+            ax.plot(ref_x, ref_y, 'k-', lw=1.6, alpha=0.85, label='Reference')
+            for traj in trajs:
+                traj = _trim_large_jumps(traj)
+                ax.plot(traj[0], traj[1], color=C_BASE if 'Base' in title else C_DQ,
+                        lw=0.45, alpha=0.35)
+                ax.scatter(traj[0, 0], traj[1, 0], color=C_BASE if 'Base' in title else C_DQ,
+                           s=10, alpha=0.65, marker='o')
+            ax.set_xlabel('$x$ [m]')
+            ax.set_ylabel('$y$ [m]')
+            ax.set_title(f'{title} — XY')
+        else:
+            ax.plot(ref_x, ref_z, 'k-', lw=1.6, alpha=0.85, label='Reference')
+            for traj in trajs:
+                traj = _trim_large_jumps(traj)
+                ax.plot(traj[0], traj[2], color=C_BASE if 'Base' in title else C_DQ,
+                        lw=0.45, alpha=0.35)
+                ax.scatter(traj[0, 0], traj[2, 0], color=C_BASE if 'Base' in title else C_DQ,
+                           s=10, alpha=0.65, marker='o')
+            ax.set_xlabel('$x$ [m]')
+            ax.set_ylabel('$z$ [m]')
+            ax.set_title(f'{title} — XZ')
+        ax.grid(True, alpha=0.2)
+
+    fig.tight_layout()
+    for ext in ['pdf', 'png']:
+        fig.savefig(os.path.join(_OUT, f'fig_mc_planar.{ext}'),
+                    bbox_inches='tight', dpi=300)
+    plt.close(fig)
+    print("  ✓ fig_mc_planar")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 #  Main
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -476,6 +576,7 @@ def main():
     fig_robustness_scatter(d)
     fig_summary(d)
     fig_3d_trajectories(d)
+    fig_planar_projections(d)
 
     print(f"\n✓ All figures saved to {_OUT}")
 

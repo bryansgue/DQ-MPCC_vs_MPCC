@@ -1,30 +1,12 @@
 """
-mpcc_tuner.py  –  Bilevel optimisation of MPCC cost weights.
+mpcc_tuner.py  –  MPCC bilevel tuner aligned with the current manual criteria.
 
-Architecture
-────────────
-  LEVEL 1 (outer):  Optuna (Bayesian / TPE) or CMA-ES optimises the
-                    gain vector θ_g = [Q_ec, Q_el, Q_q, U_mat, Q_omega, Q_s]
-  LEVEL 2 (inner):  Full MPCC simulation with acados (runs ~30 s per eval).
-                    The solver was compiled ONCE with symbolic parameters.
-
-The meta-cost uses the SAME cost function as the MPCC solver:
-
-    J_stage = ec'Q_ec·ec + e_lag'Q_el·e_lag + log_q'Q_q·log_q
-            + u'U·u + ω'Q_ω·ω + Q_s·(v_max − v_θ)²
-
-accumulated over the entire trajectory.  An additional penalty for
-incomplete path traversal is added to discourage premature stops.
-
-Usage
-─────
-    cd /home/bryansgue/dev/ros2/MPCC_baseline
-    python -m tuning.mpcc_tuner                     # run with defaults
-    python -m tuning.mpcc_tuner --n-trials 200      # more trials
-    python -m tuning.mpcc_tuner --sampler cmaes     # use CMA-ES
-
-After optimisation, the best weights are printed and saved to
-    tuning/best_weights.json
+This phase now uses:
+  • multi-velocity evaluation
+  • contouring error as the primary tracking metric
+  • lag and attitude as secondary regularisers
+  • a soft speed reward to avoid the "go-slow cheat"
+  • hard penalties for incomplete or failed runs
 """
 
 import argparse
@@ -46,14 +28,14 @@ from MPCC_simulation_tuner import run_simulation
 
 # ── Shared tuning configuration ──────────────────────────────────────────────
 from tuning_config import (
-    W_INCOMPLETE, W_TIME, W_VEL, W_ISOTROPY, W_CONTOUR,
-    FREC, VTHETA_MAX,
+    W_INCOMPLETE, W_FAIL,
     DEFAULT_N_TRIALS, DEFAULT_SAMPLER, N_STARTUP_TRIALS, OPTUNA_SEED,
     Q_EC_RANGE, Q_EL_RANGE, Q_ROT_RANGE,
     U_T_RANGE, U_TAU_RANGE,
     Q_OMEGA_RANGE, Q_S_RANGE,
     TUNING_VELOCITIES,
 )
+from experiment_config import MPCC_MANUAL_WEIGHTS
 
 try:
     import optuna
@@ -93,6 +75,13 @@ SEARCH_SPACE = [
     # Q_s: progress speed
     ('Q_s',    *Q_S_RANGE),
 ]
+
+
+# Local objective composition.
+W_CONTOUR_LOCAL = 1.0
+W_LAG_LOCAL = 0.35
+W_ATT_LOCAL = 0.10
+W_VEL_SOFT = 0.6
 
 
 def trial_to_weights(trial) -> dict:
@@ -137,37 +126,28 @@ def _evaluate_single_velocity(weights: dict, v_max: float) -> tuple[float, dict]
     except Exception as e:
         return 1e6, {'error': str(e)}
 
-    mpcc_cost = result['mean_mpcc_cost']
-    compl     = result['path_completed']
-    rmse_c    = result['rmse_contorno']
-    v_mean    = float(result['mean_vtheta'])
-    N_steps   = result['N_steps']
-    s_max     = result['s_max']
+    compl     = float(result['path_completed'])
+    rmse_c    = float(result.get('rmse_contorno', np.inf))
+    rmse_l    = float(result.get('rmse_lag', np.inf))
+    rmse_att  = float(result.get('rmse_attitude', np.inf))
+    mean_vt   = float(result.get('mean_vtheta', 0.0))
+    success   = bool(result.get('success', True))
+    fail_ratio = float(result.get('solver_fail_ratio', 0.0))
 
-    if not np.isfinite(mpcc_cost) or not np.isfinite(rmse_c):
+    if not np.isfinite(rmse_c) or not np.isfinite(rmse_l) or not np.isfinite(rmse_att):
         return 1e6, result
 
-    J = mpcc_cost
-
+    J = (
+        W_CONTOUR_LOCAL * rmse_c
+        + W_LAG_LOCAL * rmse_l
+        + W_ATT_LOCAL * rmse_att
+    )
+    J += W_VEL_SOFT * max(0.0, v_max - mean_vt) / v_max
     if compl < 0.99:
         J += W_INCOMPLETE * (1.0 - compl)
-
-    t_s   = 1.0 / FREC
-    t_lap = N_steps * t_s
-    T_ref = s_max / v_max
-    J += W_TIME * (t_lap / T_ref)
-
-    vel_ratio = max(0.0, (v_max - v_mean)) / v_max
-    J += W_VEL * vel_ratio
-
-    e_cont_3 = result['e_contorno']
-    e_lag_3  = result['e_lag']
-    e_all_3  = np.sqrt(e_cont_3**2 + e_lag_3**2)
-    rmse_xyz = np.sqrt(np.mean(e_all_3**2, axis=1))
-    aniso    = rmse_xyz.max() / (rmse_xyz.min() + 1e-8) - 1.0
-    J += W_ISOTROPY * aniso
-
-    J += W_CONTOUR * rmse_c
+    if not success:
+        J += W_FAIL
+    J += W_FAIL * fail_ratio
 
     result['_J'] = J
     return J, result
@@ -178,11 +158,7 @@ def _evaluate_single_velocity(weights: dict, v_max: float) -> tuple[float, dict]
 # ══════════════════════════════════════════════════════════════════════════════
 
 def objective(trial) -> float:
-    """Evaluate one set of gains across MULTIPLE representative velocities.
-
-    The objective is the MEAN sub-objective over TUNING_VELOCITIES:
-        J_multi = (1/|V|) * Σ_v  J(w, v)
-    """
+    """Evaluate one set of gains over the current stabilisation velocity set."""
     weights = trial_to_weights(trial)
 
     t0_total = time.time()
@@ -203,7 +179,8 @@ def objective(trial) -> float:
         if isinstance(info, dict) and 'path_completed' in info:
             parts.append(f"v={v}: J={J_per_vel[v]:.2f} "
                         f"path={info['path_completed']*100:.0f}% "
-                        f"v̄θ={float(info.get('mean_vtheta', 0)):.1f}")
+                        f"v̄θ={float(info.get('mean_vtheta', 0)):.1f} "
+                        f"rmse_c={float(info.get('rmse_contorno', 0)):.3f}")
         else:
             parts.append(f"v={v}: FAIL")
 
@@ -255,6 +232,8 @@ def main():
     print(f"  Velocities : {TUNING_VELOCITIES}")
     print(f"  Study      : {args.study_name}")
     print(f"  Storage    : {args.db or 'in-memory'}\n")
+    print(f"  Objective  : {W_CONTOUR_LOCAL}*rmse_c + "
+          f"{W_LAG_LOCAL}*rmse_l + {W_ATT_LOCAL}*rmse_att + vel_penalty\n")
 
     print("[1/3] Building infrastructure (trajectory + solver) ...")
     t0 = time.time()
@@ -274,6 +253,27 @@ def main():
         storage=args.db,
         load_if_exists=True,
     )
+
+    if len(study.trials) == 0:
+        study.enqueue_trial({
+            'Q_ecx': MPCC_MANUAL_WEIGHTS['Q_ec'][0],
+            'Q_ecy': MPCC_MANUAL_WEIGHTS['Q_ec'][1],
+            'Q_ecz': MPCC_MANUAL_WEIGHTS['Q_ec'][2],
+            'Q_elx': MPCC_MANUAL_WEIGHTS['Q_el'][0],
+            'Q_ely': MPCC_MANUAL_WEIGHTS['Q_el'][1],
+            'Q_elz': MPCC_MANUAL_WEIGHTS['Q_el'][2],
+            'Q_qx': MPCC_MANUAL_WEIGHTS['Q_q'][0],
+            'Q_qy': MPCC_MANUAL_WEIGHTS['Q_q'][1],
+            'Q_qz': MPCC_MANUAL_WEIGHTS['Q_q'][2],
+            'U_T': MPCC_MANUAL_WEIGHTS['U_mat'][0],
+            'U_tx': MPCC_MANUAL_WEIGHTS['U_mat'][1],
+            'U_ty': MPCC_MANUAL_WEIGHTS['U_mat'][2],
+            'U_tz': MPCC_MANUAL_WEIGHTS['U_mat'][3],
+            'Q_wx': MPCC_MANUAL_WEIGHTS['Q_omega'][0],
+            'Q_wy': MPCC_MANUAL_WEIGHTS['Q_omega'][1],
+            'Q_wz': MPCC_MANUAL_WEIGHTS['Q_omega'][2],
+            'Q_s': MPCC_MANUAL_WEIGHTS['Q_s'],
+        })
 
     # ── Run optimisation ─────────────────────────────────────────────────
     print(f"[2/3] Running {args.n_trials} trials "
@@ -331,14 +331,14 @@ def main():
             'n_trials': len(history_records),
             'sampler': args.sampler,
             'objective_info': {
-                'type': 'MEAN over velocities of (mpcc_cost + completion + time + vel + isotropy + contour)',
+                'type': 'MEAN over velocities of contour-dominant local objective',
                 'W_INCOMPLETE': W_INCOMPLETE,
-                'W_TIME': W_TIME,
-                'W_VEL': W_VEL,
-                'W_ISOTROPY': W_ISOTROPY,
-                'W_CONTOUR': W_CONTOUR,
+                'W_FAIL': W_FAIL,
+                'W_CONTOUR_LOCAL': W_CONTOUR_LOCAL,
+                'W_LAG_LOCAL': W_LAG_LOCAL,
+                'W_ATT_LOCAL': W_ATT_LOCAL,
+                'W_VEL_SOFT': W_VEL_SOFT,
                 'TUNING_VELOCITIES': TUNING_VELOCITIES,
-                'FREC': FREC,
             },
             'trials': history_records,
         }, fp, indent=2)
@@ -356,15 +356,15 @@ def main():
         'user_attrs': {k: float(v) for k, v in best.user_attrs.items()
                        if isinstance(v, (int, float))},
         'objective_info': {
-            'type': 'MEAN over velocities of (mpcc_cost + completion + time + vel + isotropy + contour)',
+            'type': 'MEAN over velocities of contour-dominant local objective',
             'strategy': 'multi-velocity',
             'TUNING_VELOCITIES': TUNING_VELOCITIES,
             'W_INCOMPLETE': W_INCOMPLETE,
-            'W_TIME': W_TIME,
-            'W_VEL': W_VEL,
-            'W_ISOTROPY': W_ISOTROPY,
-            'W_CONTOUR': W_CONTOUR,
-            'FREC': FREC,
+            'W_FAIL': W_FAIL,
+            'W_CONTOUR_LOCAL': W_CONTOUR_LOCAL,
+            'W_LAG_LOCAL': W_LAG_LOCAL,
+            'W_ATT_LOCAL': W_ATT_LOCAL,
+            'W_VEL_SOFT': W_VEL_SOFT,
         },
     }
 

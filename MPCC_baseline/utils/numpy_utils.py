@@ -159,6 +159,52 @@ def quaternion_hemisphere_correction(quats: np.ndarray) -> np.ndarray:
     return q
 
 
+def rotation_matrix_to_quaternion(R: np.ndarray) -> np.ndarray:
+    """Rotation matrix -> quaternion [qw, qx, qy, qz]."""
+    trace = float(np.trace(R))
+    if trace > 0.0:
+        s = math.sqrt(trace + 1.0) * 2.0
+        qw = 0.25 * s
+        qx = (R[2, 1] - R[1, 2]) / s
+        qy = (R[0, 2] - R[2, 0]) / s
+        qz = (R[1, 0] - R[0, 1]) / s
+    elif R[0, 0] > R[1, 1] and R[0, 0] > R[2, 2]:
+        s = math.sqrt(1.0 + R[0, 0] - R[1, 1] - R[2, 2]) * 2.0
+        qw = (R[2, 1] - R[1, 2]) / s
+        qx = 0.25 * s
+        qy = (R[0, 1] + R[1, 0]) / s
+        qz = (R[0, 2] + R[2, 0]) / s
+    elif R[1, 1] > R[2, 2]:
+        s = math.sqrt(1.0 + R[1, 1] - R[0, 0] - R[2, 2]) * 2.0
+        qw = (R[0, 2] - R[2, 0]) / s
+        qx = (R[0, 1] + R[1, 0]) / s
+        qy = 0.25 * s
+        qz = (R[1, 2] + R[2, 1]) / s
+    else:
+        s = math.sqrt(1.0 + R[2, 2] - R[0, 0] - R[1, 1]) * 2.0
+        qw = (R[1, 0] - R[0, 1]) / s
+        qx = (R[0, 2] + R[2, 0]) / s
+        qy = (R[1, 2] + R[2, 1]) / s
+        qz = 0.25 * s
+    q = np.array([qw, qx, qy, qz], dtype=float)
+    norm_q = np.linalg.norm(q)
+    return q / (norm_q + 1e-12)
+
+
+def quat_interp_by_arc(s: float, s_wp: np.ndarray, quat_wp: np.ndarray) -> np.ndarray:
+    """Piecewise-linear quaternion interpolation at arc-length s."""
+    s = np.clip(s, s_wp[0], s_wp[-1])
+    idx = np.searchsorted(s_wp, s, side='right') - 1
+    idx = np.clip(idx, 0, len(s_wp) - 2)
+    alpha = (s - s_wp[idx]) / (s_wp[idx + 1] - s_wp[idx] + 1e-12)
+    q0 = quat_wp[:, idx]
+    q1 = quat_wp[:, idx + 1]
+    if np.dot(q0, q1) < 0:
+        q1 = -q1
+    q = (1.0 - alpha) * q0 + alpha * q1
+    return q / (np.linalg.norm(q) + 1e-12)
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  2.  Angular kinematics
 # ══════════════════════════════════════════════════════════════════════════════
@@ -258,12 +304,22 @@ def build_waypoints(
     position_by_arc,
     tangent_by_arc,
     euler_to_quat_fn=None,
+    reference_speed: float = 0.0,
+    gravity: float = 9.81,
+    max_tilt_deg: float = 60.0,
 ):
     """Sample the path uniformly in arc-length and build waypoint arrays.
 
-    Computes positions, unit tangents, and yaw-aligned quaternions at
-    *n_waypoints* evenly-spaced arc-length values.  Quaternion hemisphere
-    consistency is enforced automatically.
+    Computes positions, unit tangents, and dynamically compatible reference
+    quaternions at *n_waypoints* evenly-spaced arc-length values.
+
+    The quaternion reference is not built from yaw alone. Instead:
+      1. the tangent defines the desired heading direction
+      2. the local curvature defines a nominal lateral acceleration
+      3. the desired body z-axis aligns with the corresponding thrust direction
+
+    This avoids the old contradiction of asking the vehicle to follow the path
+    tangent while simultaneously penalising a hover-like roll/pitch attitude.
 
     Parameters
     ----------
@@ -271,8 +327,12 @@ def build_waypoints(
     n_waypoints    : int        – number of waypoints.
     position_by_arc: callable   – from  build_arc_length_parameterisation.
     tangent_by_arc : callable   – from  build_arc_length_parameterisation.
-    euler_to_quat_fn : callable (roll, pitch, yaw) → [qw,qx,qy,qz], optional.
-        Defaults to the local  euler_to_quaternion.
+    euler_to_quat_fn : kept for backward compatibility, unused by the new
+        attitude reference construction.
+    reference_speed : nominal path speed [m/s] used to turn curvature into a
+        lateral acceleration reference.
+    gravity         : gravity constant [m/s²].
+    max_tilt_deg    : maximum allowed tilt used to keep the reference feasible.
 
     Returns
     -------
@@ -281,9 +341,6 @@ def build_waypoints(
     tang_wp: ndarray (3, N)  – unit tangents.
     quat_wp: ndarray (4, N)  – hemisphere-consistent quaternions.
     """
-    if euler_to_quat_fn is None:
-        euler_to_quat_fn = euler_to_quaternion
-
     s_wp    = np.linspace(0.0, s_max, n_waypoints)
     pos_wp  = np.zeros((3, n_waypoints))
     tang_wp = np.zeros((3, n_waypoints))
@@ -292,11 +349,95 @@ def build_waypoints(
     for i, sv in enumerate(s_wp):
         pos_wp[:, i]  = position_by_arc(sv)
         tang_wp[:, i] = tangent_by_arc(sv)
-        psi_i         = np.arctan2(tang_wp[1, i], tang_wp[0, i])
-        quat_wp[:, i] = euler_to_quat_fn(0.0, 0.0, psi_i)
+
+    ds = s_wp[1] - s_wp[0] if n_waypoints > 1 else 1.0
+    curvature_wp = np.zeros_like(tang_wp)
+    if n_waypoints > 1:
+        curvature_wp[:, 0] = (tang_wp[:, 1] - tang_wp[:, 0]) / ds
+        curvature_wp[:, -1] = (tang_wp[:, -1] - tang_wp[:, -2]) / ds
+    for i in range(1, n_waypoints - 1):
+        curvature_wp[:, i] = (tang_wp[:, i + 1] - tang_wp[:, i - 1]) / (2.0 * ds)
+
+    max_tilt_rad = math.radians(max_tilt_deg)
+    e3 = np.array([0.0, 0.0, 1.0])
+
+    for i in range(n_waypoints):
+        tang_i = tang_wp[:, i]
+        tang_i = tang_i / (np.linalg.norm(tang_i) + 1e-12)
+        a_lat = (reference_speed ** 2) * curvature_wp[:, i]
+
+        thrust_dir = np.array([a_lat[0], a_lat[1], gravity + a_lat[2]], dtype=float)
+        horiz_norm = np.linalg.norm(thrust_dir[:2])
+        max_horiz = max(1e-9, thrust_dir[2] * math.tan(max_tilt_rad))
+        if horiz_norm > max_horiz:
+            thrust_dir[:2] *= max_horiz / horiz_norm
+        b3 = thrust_dir / (np.linalg.norm(thrust_dir) + 1e-12)
+
+        b1 = tang_i - np.dot(tang_i, b3) * b3
+        if np.linalg.norm(b1) < 1e-8:
+            yaw_i = math.atan2(tang_i[1], tang_i[0])
+            heading = np.array([math.cos(yaw_i), math.sin(yaw_i), 0.0])
+            b1 = heading - np.dot(heading, b3) * b3
+        if np.linalg.norm(b1) < 1e-8:
+            b1 = np.array([1.0, 0.0, 0.0]) - b3[0] * b3
+        b1 = b1 / (np.linalg.norm(b1) + 1e-12)
+        b2 = np.cross(b3, b1)
+        b2 = b2 / (np.linalg.norm(b2) + 1e-12)
+        b1 = np.cross(b2, b3)
+        b1 = b1 / (np.linalg.norm(b1) + 1e-12)
+
+        R = np.column_stack((b1, b2, b3))
+        quat_wp[:, i] = rotation_matrix_to_quaternion(R)
 
     quat_wp = quaternion_hemisphere_correction(quat_wp)
     return s_wp, pos_wp, tang_wp, quat_wp
+
+
+def build_terminally_extended_path(
+    position_by_arc,
+    tangent_by_arc,
+    s_path_end: float,
+    s_extended_end: float,
+    s_original_end: float | None = None,
+):
+    """Extend the path beyond its active limit using the available geometry.
+
+    Behaviour:
+      1. for s <= min(s_path_end, s_original_end) use the original path
+      2. if the original path still exists beyond s_path_end, keep following it
+         up to s_original_end
+      3. only after the true geometric end is reached, extend linearly using
+         the final tangent
+
+    This avoids the pathological case where the controller crosses a manual
+    active limit s_path_end while the real path still curves, but the solver
+    horizon sees only a straight tangent continuation.
+    """
+    s_path_end = float(s_path_end)
+    s_extended_end = float(max(s_extended_end, s_path_end))
+    if s_original_end is None:
+        s_original_end = s_path_end
+    s_original_end = float(max(s_original_end, s_path_end))
+
+    pos_end = np.array(position_by_arc(s_original_end), dtype=float)
+    tang_end = np.array(tangent_by_arc(s_original_end), dtype=float)
+    tang_norm = np.linalg.norm(tang_end)
+    if tang_norm > 1e-8:
+        tang_end = tang_end / tang_norm
+
+    def position_by_arc_extended(s: float) -> np.ndarray:
+        s_clamped = float(np.clip(s, 0.0, s_extended_end))
+        if s_clamped <= s_original_end:
+            return position_by_arc(s_clamped)
+        return pos_end + (s_clamped - s_original_end) * tang_end
+
+    def tangent_by_arc_extended(s: float) -> np.ndarray:
+        s_clamped = float(np.clip(s, 0.0, s_extended_end))
+        if s_clamped <= s_original_end:
+            return tangent_by_arc(s_clamped)
+        return tang_end
+
+    return position_by_arc_extended, tangent_by_arc_extended
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -405,21 +546,21 @@ def rk4_step_quadrotor(x: np.ndarray, u: np.ndarray,
 
 def rk4_step_mpcc(x: np.ndarray, u: np.ndarray,
                    ts: float, f_sys) -> np.ndarray:
-    """RK4 step for the 14-state augmented MPCC model (+ θ state).
+    """RK4 step for the 15-state augmented MPCC model (+ θ, v_θ states).
 
     Parameters
     ----------
-    x     : ndarray (14,)  – [p, v, q, ω, θ]
-    u     : ndarray (5,)   – [T, τx, τy, τz, v_θ]
+    x     : ndarray (15,)  – [p, v, q, ω, θ, v_θ]
+    u     : ndarray (5,)   – [T, τx, τy, τz, a_θ]
     ts    : float          – sampling time [s]
-    f_sys : casadi.Function (x14, u5) → ẋ14
+    f_sys : casadi.Function (x15, u5) → ẋ15
     """
     k1 = f_sys(x, u)
     k2 = f_sys(x + (ts / 2) * k1, u)
     k3 = f_sys(x + (ts / 2) * k2, u)
     k4 = f_sys(x + ts * k3, u)
     x_next = x + (ts / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
-    return np.array(x_next[:, 0]).reshape((14,))
+    return np.array(x_next[:, 0]).reshape((15,))
 
 
 # ══════════════════════════════════════════════════════════════════════════════

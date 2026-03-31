@@ -15,6 +15,7 @@ import numpy as np
 
 from config.experiment_config import (
     S_MAX_MANUAL,        # arc-length limit [m]
+    T_FINAL,             # simulation time budget [s]
     FREC,                # control frequency [Hz]
     T_PREDICTION,        # MPC prediction horizon [s]
     N_WAYPOINTS,         # CasADi interpolation waypoints
@@ -30,11 +31,11 @@ S_MAX = S_MAX_MANUAL if S_MAX_MANUAL is not None else 80
 # ═════════════════════════════════════════════════════════════════════════════
 
 # Maximum virtual progress speeds to test [m/s]
-VELOCITIES = [4, 6, 8, 10, 12, 14, 16, 18, 20]
+VELOCITIES = [4, 8, 12, 16, 20, 24]
 
 # Number of Monte Carlo runs per speed per controller
-# ── Quick test: 2 runs.  Final experiment: set to 50 ──
-N_RUNS = 10
+# ── Final sweep setting for the current Experiment 2 report ──
+N_RUNS = 5
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -51,12 +52,5 @@ SIGMA_Q = 0.05
 SEED = 42
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-#  Timing override  (Experiment 2 only)
-#
-#  At high speeds the drone finishes 80 m much faster, so we use a shorter
-#  safety budget than production (60 s).  The slowest speed (4 m/s) needs
-#  ≈ 80/4 = 20 s theoretical, so 30 s gives plenty of margin.
-# ═════════════════════════════════════════════════════════════════════════════
-
-T_FINAL = 30   # [s]  (production uses 60 s)
+# Timing is now inherited directly from experiment_config.py so the sweep uses
+# the same trajectory-length budget and stopping horizon as the main baselines.

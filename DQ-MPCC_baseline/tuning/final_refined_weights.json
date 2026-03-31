@@ -1,0 +1,67 @@
+{
+  "source": "dq_tuning_local_refresh",
+  "selected_on": "2026-03-29",
+  "notes": [
+    "Promoted from DQ-MPCC_baseline/tuning/best_weights_local.json after local DQ refinement on the current manual gain set.",
+    "This refined set improves contouring, lag, and effective speed relative to the current DQ manual baseline.",
+    "Kept as an explicit final artifact so downstream scripts can compare manual vs refined without depending on an evolving scratch file."
+  ],
+  "weights": {
+    "Q_phi": [
+      0.7652077834475207,
+      0.4901407889574036,
+      1.595623973141656
+    ],
+    "Q_ec": [
+      45.4177088331441,
+      49.13120672026078,
+      38.21391337858334
+    ],
+    "Q_el": [
+      4.037379240845405,
+      2.664684532792887,
+      2.632315845996098
+    ],
+    "U_mat": [
+      0.05,
+      70.0,
+      70.0,
+      70.0
+    ],
+    "Q_omega": [
+      0.02,
+      0.02,
+      0.1
+    ],
+    "Q_s": 8.267395841820148
+  },
+  "comparison_vs_base": {
+    "base": {
+      "rmse_contorno": 0.34629825610306,
+      "rmse_lag": 0.5069432157937511,
+      "mean_vtheta": 1.5936025170247878,
+      "mean_vpath_ratio": 0.6854013556740968,
+      "effective_speed": 1.0922573255744426,
+      "mean_effort": 255.96877439570562,
+      "path_completed": 0.9999998488085803,
+      "solver_fail_ratio": 0.0
+    },
+    "refined": {
+      "rmse_contorno": 0.29014976488906985,
+      "rmse_lag": 0.34996589841189524,
+      "mean_vtheta": 1.5936026356540822,
+      "mean_vpath_ratio": 0.7651973138555543,
+      "effective_speed": 1.2194204561556354,
+      "mean_effort": 222.6576312400295,
+      "path_completed": 0.9999999217986298,
+      "solver_fail_ratio": 0.0
+    },
+    "improvement_percent": {
+      "rmse_contorno": 16.21391105050211,
+      "rmse_lag": 30.965463683356955,
+      "effective_speed": 11.642231881055588,
+      "mean_vpath_ratio": 11.642223570301772,
+      "path_completed": 7.299006059543313e-06
+    }
+  }
+}

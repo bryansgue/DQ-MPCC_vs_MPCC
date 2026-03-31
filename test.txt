@@ -1,0 +1,30 @@
+MPCC_STABLE_WEIGHTS = dict(
+    Q_ec       = [24, 24, 24],
+    Q_el       = [6, 6, 6],
+    Q_q        = [0.5, 0.5, 1.9],
+    U_mat      = [0.05, 70, 70, 70],
+    Q_omega    = [0.02, 0.02, 0.10],
+    Q_s        = 9.0
+)
+
+# Active manual set: slightly faster than MPCC_STABLE_WEIGHTS while keeping
+# contouring and attitude within a narrow margin of the stable behaviour.
+MPCC_MANUAL_WEIGHTS = dict(
+    Q_ec       = [26.4, 26.4, 26.4],
+    Q_el       = [7.0, 7.0, 7.0],
+    Q_q        = [0.45, 0.45, 1.9],
+    U_mat      = [0.05, 70, 70, 70],
+    Q_omega    = [0.02, 0.02, 0.10],
+    Q_s        = 13.225
+)
+
+# Local bilevel refinement around MPCC_MANUAL_WEIGHTS.
+# This set improves contouring and lag, but it is slower than the active set.
+MPCC_LOCAL_REFINED_WEIGHTS = dict(
+    Q_ec       = [30.118396635491276, 14.580643485201573, 18.28084977612847],
+    Q_el       = [8.43079260763512, 9.94663278678172, 5.8537362121126035],
+    Q_q        = [0.7937768798370582, 0.41989725252319515, 1.4562093419758555],
+    U_mat      = [0.05, 70, 70, 70],
+    Q_omega    = [0.02, 0.02, 0.10],
+    Q_s        = 8.066486491184941
+)

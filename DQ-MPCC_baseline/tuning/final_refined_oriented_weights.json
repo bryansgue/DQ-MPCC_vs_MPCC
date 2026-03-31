@@ -1,0 +1,45 @@
+{
+  "source": "dq_tuning_local_refresh + orientation_release",
+  "selected_on": "2026-03-30",
+  "notes": [
+    "Derived from DQ-MPCC_baseline/tuning/final_refined_weights.json.",
+    "Slightly increases Q_phi to test whether Experiment 2 orientation tracking improves without materially affecting translational tracking.",
+    "Used as a trial comparison set before any new full tuning campaign."
+  ],
+  "weights": {
+    "Q_phi": [
+      0.8417285617922729,
+      0.539154867853144,
+      1.7551863704558218
+    ],
+    "Q_ec": [
+      45.4177088331441,
+      49.13120672026078,
+      38.21391337858334
+    ],
+    "Q_el": [
+      4.037379240845405,
+      2.664684532792887,
+      2.632315845996098
+    ],
+    "U_mat": [
+      0.05,
+      70.0,
+      70.0,
+      70.0
+    ],
+    "Q_omega": [
+      0.02,
+      0.02,
+      0.1
+    ],
+    "Q_s": 8.267395841820148
+  },
+  "derived_from": {
+    "path": "DQ-MPCC_baseline/tuning/final_refined_weights.json",
+    "modified_keys": [
+      "Q_phi"
+    ],
+    "scale_factor": 1.1
+  }
+}

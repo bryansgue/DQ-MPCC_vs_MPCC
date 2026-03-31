@@ -64,7 +64,7 @@ matplotlib.rcParams.update({
 COL_W = 3.5          # IEEE single-column width in inches
 
 # ── Velocity to highlight (simulated "real flight") ──────────────────────
-V_HIGHLIGHT = 10     # m/s  — change when you pick the real-flight speed
+V_HIGHLIGHT = 20     # m/s  — change when you pick the real-flight speed
 
 # ── Colours ──────────────────────────────────────────────────────────────
 C_GREY  = '#b0b0b0'  # all other sims
@@ -73,10 +73,13 @@ C_REF   = 'k'        # reference path
 
 _SCRIPT  = os.path.dirname(os.path.abspath(__file__))
 _ROOT    = os.path.dirname(_SCRIPT)
-_DATA    = os.path.join(_ROOT, 'results', 'experiment2',
-                        'trajectory_3d_data.mat')
-_OUT_DIR = os.path.join(_ROOT, 'results', 'experiment2')
-os.makedirs(_OUT_DIR, exist_ok=True)
+sys.path.insert(0, _ROOT)
+from config.result_paths import experiment_dirs
+
+_EXP2_DIRS = experiment_dirs("experiment2")
+_DATA    = os.path.join(str(_EXP2_DIRS["data"]), 'trajectory_3d_data.mat')
+_OUT_DIR = str(_EXP2_DIRS["figures"])
+_LEGACY_DATA = os.path.join(_ROOT, 'results', 'experiment2', 'trajectory_3d_data.mat')
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -90,7 +93,8 @@ def fig_3d_velocity(v_highlight=V_HIGHLIGHT, save=True, show=True):
     If experimental keys exist in the .mat they are overlaid automatically.
     """
 
-    d    = loadmat(_DATA, squeeze_me=True)
+    data_path = _DATA if os.path.isfile(_DATA) else _LEGACY_DATA
+    d    = loadmat(data_path, squeeze_me=True)
     vels = np.atleast_1d(d['velocities']).astype(int)
 
     ref_x = np.asarray(d['ref_x']).ravel()

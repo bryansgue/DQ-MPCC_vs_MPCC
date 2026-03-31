@@ -367,7 +367,10 @@ def plot_velocity_analysis(vel_progres, vel_real, vel_tangent,
 
 
 def plot_3d_trajectory(x_actual, pos_ref, s_max=None,
-                       position_by_arc=None, N_plot=500):
+                       position_by_arc=None, N_plot=500,
+                       theta_history=None, s_max_solver=None,
+                       position_by_arc_solver=None,
+                       theta_anchor=None, theta_future_end=None):
     """3D trajectory visualisation: reference path vs actual flight path.
 
     Falls back to 2D (XY + XZ) if mpl_toolkits.mplot3d is unavailable.
@@ -380,21 +383,66 @@ def plot_3d_trajectory(x_actual, pos_ref, s_max=None,
     position_by_arc : callable, optional – for denser reference sampling
     N_plot          : int                – dense ref samples (if callable given)
     """
-    # Build dense reference
+    # Build dense reference for the active path and, if provided, for the
+    # terminal extension used by the solver after crossing s_max.
     if position_by_arc is not None and s_max is not None:
         s_dense = np.linspace(0, s_max, N_plot)
-        ref = np.array([position_by_arc(s) for s in s_dense]).T
+        ref_active = np.array([position_by_arc(s) for s in s_dense]).T
     else:
-        ref = pos_ref
+        ref_active = pos_ref
+
+    ref_post = None
+    if (
+        position_by_arc_solver is not None
+        and s_max is not None
+        and s_max_solver is not None
+        and s_max_solver > s_max + 1e-9
+    ):
+        s_post = np.linspace(s_max, s_max_solver, max(2, N_plot // 5))
+        ref_post = np.array([position_by_arc_solver(s) for s in s_post]).T
+
+    ref_future = None
+    if (
+        position_by_arc_solver is not None
+        and theta_anchor is not None
+        and theta_future_end is not None
+        and theta_future_end > theta_anchor + 1e-9
+    ):
+        s_future = np.linspace(theta_anchor, theta_future_end, max(2, N_plot // 6))
+        ref_future = np.array([position_by_arc_solver(s) for s in s_future]).T
+
+    actual_active = x_actual
+    actual_post = None
+    if theta_history is not None and s_max is not None:
+        theta_vals = np.asarray(theta_history).reshape(-1)
+        n_theta = min(theta_vals.size, x_actual.shape[1])
+        theta_vals = theta_vals[:n_theta]
+        split_idx = np.searchsorted(theta_vals, s_max, side="right")
+        split_idx = int(np.clip(split_idx, 1, n_theta))
+        actual_active = x_actual[:, :split_idx]
+        if split_idx < n_theta:
+            actual_post = x_actual[:, split_idx - 1:n_theta]
 
     if _HAS_3D:
         fig = plt.figure(figsize=(10, 8))
         ax = fig.add_subplot(111, projection='3d')
 
-        ax.plot(ref[0], ref[1], ref[2],
-                color=C_GREY, lw=1.5, ls='--', alpha=0.6, label='Reference path')
-        ax.plot(x_actual[0, :], x_actual[1, :], x_actual[2, :],
+        ax.plot(ref_active[0], ref_active[1], ref_active[2],
+                color=C_GREY, lw=1.5, ls='--', alpha=0.7, label='Reference path')
+        if ref_post is not None:
+            ax.plot(ref_post[0], ref_post[1], ref_post[2],
+                    color=C_GREY, lw=1.2, ls=':', alpha=0.7,
+                    label='Reference extension')
+        if ref_future is not None:
+            ax.plot(ref_future[0], ref_future[1], ref_future[2],
+                    color=C_GREEN, lw=2.2, ls='-.', alpha=0.95,
+                    label='Future reference from $\\theta_f$')
+        ax.plot(actual_active[0, :], actual_active[1, :], actual_active[2, :],
                 color=C_BLUE, lw=2.0, label='Actual trajectory')
+        if actual_post is not None and actual_post.shape[1] >= 2:
+            ax.plot(actual_post[0, :], actual_post[1, :], actual_post[2, :],
+                    color=C_ORANGE, lw=2.0, ls='--',
+                    label='Post-$s_{max}$ trajectory')
 
         ax.scatter(*x_actual[:3, 0],  color=C_GREEN, s=80, marker='o',
                    zorder=5, label='Start')
@@ -410,9 +458,15 @@ def plot_3d_trajectory(x_actual, pos_ref, s_max=None,
     else:
         # 2D projections: XY on top, XZ below
         # ── Pre-compute data ranges to set axis limits and figure proportions ──
-        all_x = np.concatenate([ref[0], x_actual[0, :]])
-        all_y = np.concatenate([ref[1], x_actual[1, :]])
-        all_z = np.concatenate([ref[2], x_actual[2, :]])
+        ref_all = ref_active
+        if ref_post is not None:
+            ref_all = np.concatenate([ref_all, ref_post], axis=1)
+        if ref_future is not None:
+            ref_all = np.concatenate([ref_all, ref_future], axis=1)
+        actual_all = actual_active if actual_post is None else np.concatenate([actual_active, actual_post[:, 1:]], axis=1)
+        all_x = np.concatenate([ref_all[0], actual_all[0, :]])
+        all_y = np.concatenate([ref_all[1], actual_all[1, :]])
+        all_z = np.concatenate([ref_all[2], actual_all[2, :]])
 
         x_min, x_max = np.nanmin(all_x), np.nanmax(all_x)
         y_min, y_max = np.nanmin(all_y), np.nanmax(all_y)
@@ -458,10 +512,19 @@ def plot_3d_trajectory(x_actual, pos_ref, s_max=None,
         tick_step = _nice_step(x_span)   # one step for ALL axes (same scale)
 
         # ── XY (top) ──────────────────────────────────────────────────────
-        ax1.plot(ref[0], ref[1], color=C_GREY, lw=1.5, ls='--',
-                 alpha=0.6, label='Reference')
-        ax1.plot(x_actual[0, :], x_actual[1, :], color=C_BLUE, lw=2.0,
+        ax1.plot(ref_active[0], ref_active[1], color=C_GREY, lw=1.5, ls='--',
+                 alpha=0.7, label='Reference')
+        if ref_post is not None:
+            ax1.plot(ref_post[0], ref_post[1], color=C_GREY, lw=1.2, ls=':',
+                     alpha=0.7, label='Reference ext.')
+        if ref_future is not None:
+            ax1.plot(ref_future[0], ref_future[1], color=C_GREEN, lw=2.2, ls='-.',
+                     alpha=0.95, label='Future ref.')
+        ax1.plot(actual_active[0, :], actual_active[1, :], color=C_BLUE, lw=2.0,
                  label='Actual')
+        if actual_post is not None and actual_post.shape[1] >= 2:
+            ax1.plot(actual_post[0, :], actual_post[1, :], color=C_ORANGE, lw=2.0,
+                     ls='--', label='Post-$s_{max}$')
         ax1.scatter(x_actual[0, 0],  x_actual[1, 0],  color=C_GREEN, s=80,
                     marker='o', zorder=5, label='Start')
         ax1.scatter(x_actual[0, -1], x_actual[1, -1], color=C_RED, s=80,
@@ -476,10 +539,19 @@ def plot_3d_trajectory(x_actual, pos_ref, s_max=None,
         _grid(ax1)
 
         # ── XZ (bottom) ───────────────────────────────────────────────────
-        ax2.plot(ref[0], ref[2], color=C_GREY, lw=1.5, ls='--',
-                 alpha=0.6, label='Reference')
-        ax2.plot(x_actual[0, :], x_actual[2, :], color=C_BLUE, lw=2.0,
+        ax2.plot(ref_active[0], ref_active[2], color=C_GREY, lw=1.5, ls='--',
+                 alpha=0.7, label='Reference')
+        if ref_post is not None:
+            ax2.plot(ref_post[0], ref_post[2], color=C_GREY, lw=1.2, ls=':',
+                     alpha=0.7, label='Reference ext.')
+        if ref_future is not None:
+            ax2.plot(ref_future[0], ref_future[2], color=C_GREEN, lw=2.2, ls='-.',
+                     alpha=0.95, label='Future ref.')
+        ax2.plot(actual_active[0, :], actual_active[2, :], color=C_BLUE, lw=2.0,
                  label='Actual')
+        if actual_post is not None and actual_post.shape[1] >= 2:
+            ax2.plot(actual_post[0, :], actual_post[2, :], color=C_ORANGE, lw=2.0,
+                     ls='--', label='Post-$s_{max}$')
         ax2.scatter(x_actual[0, 0],  x_actual[2, 0],  color=C_GREEN, s=80,
                     marker='o', zorder=5)
         ax2.scatter(x_actual[0, -1], x_actual[2, -1], color=C_RED, s=80,

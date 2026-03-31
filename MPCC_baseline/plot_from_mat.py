@@ -22,7 +22,14 @@ sys.path.insert(0, _ROOT)
 if len(sys.argv) > 1:
     mat_path = os.path.abspath(sys.argv[1])
 else:
-    mat_path = os.path.join(_HERE, 'Results_MPCC_baseline_1.mat')
+    candidates = [
+        os.path.join(_HERE, 'Results_MPCC_baseline_refined.mat'),
+        os.path.join(_HERE, 'Results_MPCC_baseline_custom.mat'),
+        os.path.join(_HERE, 'Results_MPCC_baseline_manual_active.mat'),
+        os.path.join(_HERE, 'Results_MPCC_baseline_manual.mat'),
+        os.path.join(_HERE, 'Results_MPCC_baseline_1.mat'),
+    ]
+    mat_path = next((p for p in candidates if os.path.isfile(p)), candidates[-1])
 
 if not os.path.isfile(mat_path):
     print(f"ERROR: archivo no encontrado: {mat_path}")
@@ -51,17 +58,17 @@ t_plot = time_vec[:N_sim + 1]
 print(f"  N_sim={N_sim}  s_max={s_max:.2f}  t_end={t_plot[-1]:.2f}s")
 
 # ── Reconstruir parametrización arc-length ────────────────────────────────────
-from experiment_config import T_FINAL, FREC, trayectoria
+from experiment_config import TRAJECTORY_T_FINAL, FREC, trayectoria
 from utils.numpy_utils import build_arc_length_parameterisation, compute_curvature
 
 t_s   = 1.0 / FREC
-t_sim = np.arange(0, T_FINAL + t_s, t_s)
+t_path = np.linspace(0.0, TRAJECTORY_T_FINAL, len(time_vec))
 
 # Trayectoria — from experiment_config.py (single source of truth)
 xd, yd, zd, xd_p, yd_p, zd_p = trayectoria()
 
 arc_lengths, pos_ref, position_by_arc_length, tangent_by_arc_length, s_max_full = \
-    build_arc_length_parameterisation(xd, yd, zd, xd_p, yd_p, zd_p, t_sim)
+    build_arc_length_parameterisation(xd, yd, zd, xd_p, yd_p, zd_p, t_path)
 
 print(f"  s_max_full={s_max_full:.2f}")
 curvature = compute_curvature(position_by_arc_length, s_max, N_samples=500)
@@ -77,8 +84,9 @@ from utils.graficas import (
     plot_progress_velocity,
 )
 
-# ── Guardar en la misma carpeta que el .mat ───────────────────────────────────
-out_dir = os.path.dirname(mat_path)
+# ── Guardar en una subcarpeta `figures/` junto al .mat ───────────────────────
+out_dir = os.path.join(os.path.dirname(mat_path), "figures")
+os.makedirs(out_dir, exist_ok=True)
 
 fig1 = plot_pose(x_std, ref, t_plot)
 fig1.savefig(os.path.join(out_dir, '1_pose.png'), dpi=150, bbox_inches='tight')

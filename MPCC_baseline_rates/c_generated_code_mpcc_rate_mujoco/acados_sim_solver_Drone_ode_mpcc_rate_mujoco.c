@@ -172,7 +172,7 @@ int Drone_ode_mpcc_rate_mujoco_acados_sim_create(Drone_ode_mpcc_rate_mujoco_sim_
     /* initialize parameter values */
     double* p = calloc(np, sizeof(double));
     
-    p[0] = 20;
+    p[0] = 10;
 
     Drone_ode_mpcc_rate_mujoco_acados_sim_update_params(capsule, p, np);
     free(p);
